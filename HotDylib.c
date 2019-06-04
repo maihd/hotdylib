@@ -1,5 +1,10 @@
 #define _CRT_SECURE_NO_WARNINGS
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+
 #include "HotDylib.h"
 
 #ifdef HOTDYLIB_PDB_DELETE
@@ -10,7 +15,8 @@
 #define HOTDYLIB_PDB_UNLOCK 1
 #endif
 
-#define HOTDYLIB_MAX_PATH 1024
+#define HOTDYLIB_MAX_PATH   1024
+#define HotDylib_CountOf(x) (sizeof(x) / sizeof((x)[0]))
 
 typedef struct
 {
@@ -29,8 +35,6 @@ typedef struct
 #endif
 } HotDylibData;
 
-#include <stdio.h>
-#include <stdlib.h>
 
 /* Define dynamic library loading API */
 #if defined(_WIN32)
@@ -96,47 +100,6 @@ static bool HotDylib_CopyFile(const char* from, const char* to)
     else
     {
         return false;
-    }
-}
-
-int HotDylib_SehFilter(HotDylib* lib, unsigned long code)
-{
-    int errcode = HOTDYLIB_ERROR_NONE;
-    
-    switch (code)
-    {
-    case EXCEPTION_ACCESS_VIOLATION:
-        errcode = HOTDYLIB_ERROR_SEGFAULT;
-        break;
-
-    case EXCEPTION_ILLEGAL_INSTRUCTION:
-        errcode = HOTDYLIB_ERROR_ILLCODE;
-        break;
-	
-    case EXCEPTION_DATATYPE_MISALIGNMENT:
-        errcode = HOTDYLIB_ERROR_MISALIGN;
-        break;
-
-    case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
-        errcode = HOTDYLIB_ERROR_OUTBOUNDS;
-        break;
-
-    case EXCEPTION_STACK_OVERFLOW:
-        errcode = HOTDYLIB_ERROR_STACKOVERFLOW;
-        break;
-
-    default:
-        break;
-    }
-
-    if (lib) lib->errcode = errcode;
-    if (errcode == HOTDYLIB_ERROR_NONE)
-    {
-        return EXCEPTION_CONTINUE_SEARCH;
-    }
-    else
-    {
-        return EXCEPTION_EXECUTE_HANDLER;
     }
 }
 
@@ -429,61 +392,121 @@ static int HotDylib_GetPdbPath(const char* libpath, char* buf, int len)
     return snprintf(buf, len, "%s%s%s.pdb", drv, dir, name);
 }
 #  endif /* HOTDYLIB_PDB_UNLOCK */
+# endif /* _MSC_VER */
 
-bool HotDylib_Begin(void)
+typedef struct SehFilter
 {
-    return false;
+    int                             ref;
+    HotDylib*                       lib;
+    LPTOP_LEVEL_EXCEPTION_FILTER    oldHandler;
+} SehFilter;
+
+static SehFilter    s_filterStack[128];
+static int          s_filterStackPointer = -1;
+
+/* Undocumented, should not call by hand */
+static int HotDylib_SEHFilter(HotDylib* lib, int excode)
+{
+    int errcode = HOTDYLIB_ERROR_NONE;
+
+    switch (excode)
+    {
+    case EXCEPTION_FLT_OVERFLOW:
+    case EXCEPTION_FLT_UNDERFLOW:
+    case EXCEPTION_FLT_STACK_CHECK:
+    case EXCEPTION_FLT_DIVIDE_BY_ZERO:
+    case EXCEPTION_FLT_INEXACT_RESULT:
+    case EXCEPTION_FLT_DENORMAL_OPERAND:
+    case EXCEPTION_FLT_INVALID_OPERATION:
+        errcode = HOTDYLIB_ERROR_FLOAT;
+        break;
+
+    case EXCEPTION_ACCESS_VIOLATION:
+        errcode = HOTDYLIB_ERROR_SEGFAULT;
+        break;
+    
+    case EXCEPTION_ILLEGAL_INSTRUCTION:
+        errcode = HOTDYLIB_ERROR_ILLCODE;
+        break;
+    
+    case EXCEPTION_DATATYPE_MISALIGNMENT:
+        errcode = HOTDYLIB_ERROR_MISALIGN;
+        break;
+    
+    case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+        errcode = HOTDYLIB_ERROR_OUTBOUNDS;
+        break;
+    
+    case EXCEPTION_STACK_OVERFLOW:
+        errcode = HOTDYLIB_ERROR_STACKOVERFLOW;
+        break;
+    
+    default:
+        break;
+    }
+    
+    if (lib) lib->errcode = errcode;
+    return errcode;
 }
 
-void HotDylib_End(void)
+static LONG WINAPI HotDylib_SignalHandler(EXCEPTION_POINTERS* info)
 {
-    /* NULL */
-}
-# else
+    assert(s_filterStackPointer > -1);
 
-#  if defined(__MINGW32__)
-__thread
-#  else
-__declspec(thread)
-#  endif
-jmp_buf csfx__jmpenv;
+    int excode  = (int)info->ExceptionRecord->ExceptionCode;
+    int errcode = HotDylib_SEHFilter(NULL, excode);
 
-static LONG WINAPI csfx__sighandler(EXCEPTION_POINTERS* info)
-{
-    int excode  = info->ExceptionRecord->ExceptionCode;
-    int errcode = HotDylib_SehFilter(NULL, excode);
-    longjmp(csfx__jmpenv, errcode);
+    longjmp(s_filterStack[s_filterStackPointer].lib->jumpPoint, errcode);
+
     return EXCEPTION_CONTINUE_EXECUTION;
 }
 
-int  HotDylib_Begin(void)
+bool HotDylib_SEHBegin(HotDylib* lib)
 {
-    SetUnhandledExceptionFilter(csfx__sighandler);
-    return 0;
+    assert(lib);
+
+    if (s_filterStack[s_filterStackPointer].lib == lib)
+    {
+        s_filterStack[s_filterStackPointer].ref++;
+    }
+    else
+    {
+        assert(s_filterStackPointer < (int)HotDylib_CountOf(s_filterStack));
+
+        SehFilter* filter   = &s_filterStack[++s_filterStackPointer];
+        filter->ref         = 0;
+        filter->lib         = lib;
+        filter->oldHandler  = SetUnhandledExceptionFilter(HotDylib_SignalHandler);
+    }
+
+    return true;
 }
 
-void HotDylib_End(void)
+void HotDylib_SEHEnd(HotDylib* lib)
 {
-    SetUnhandledExceptionFilter(NULL);
+    assert(lib);
+    assert(s_filterStackPointer > -1 && s_filterStack[s_filterStackPointer].lib == lib);
+
+    SehFilter* filter = &s_filterStack[s_filterStackPointer];
+    if (--filter->ref <= 0)
+    {
+        s_filterStackPointer--;
+        SetUnhandledExceptionFilter(filter->oldHandler);
+    }
 }
-# endif /* _MSC_VER */
 
 #elif defined(__unix__)
-# include <string.h>
-# include <sys/stat.h>
-# include <sys/types.h>
-# define CSFX__PATH_LENGTH PATH_MAX
-# define csfx__countof(x) (sizeof(x) / sizeof((x)[0]))
+#   include <sys/stat.h>
+#   include <sys/types.h>
 
-__thread sigjmp_buf csfx__jmpenv;
-const int csfx__signals[] = { SIGBUS, SIGSYS, SIGILL, SIGSEGV, SIGABRT };
+const int HotDylib_Signals[] = { SIGBUS, SIGSYS, SIGILL, SIGSEGV, SIGABRT };
 
 static long HotDylib_GetLastModifyTime(const char* path)
 {
     struct stat st;
     if (stat(path, &st) != 0)
     {
-	return 0;
+	    return 0;
     }
 
     return (long)st.st_mtime;
@@ -492,20 +515,22 @@ static long HotDylib_GetLastModifyTime(const char* path)
 static int HotDylib_CopyFile(const char* from_path, const char* to_path)
 {
     char scmd[3 * PATH_MAX]; /* 2 path and command */
-    sprintf(scmd, "\\cp -fR %s %s", from_path, to_path);
+    sprintf(scmd, "cp -fR %s %s", from_path, to_path);
     if (system(scmd) != 0)
     {
-	/* Has an error occur */
-	return 0;
+	    /* Has an error occur */
+	    return 0;
     }
     else
     {
-	return 1;
+	    return 1;
     }
 }
 
-static void csfx__sighandler(int code, siginfo_t* info, void* context)
+static void HotDylib_SignalHandler(int code, siginfo_t* info, void* context)
 {
+    assert(s_filterStackPointer > -1);
+
     int errcode;
 
     (void)info;
@@ -514,62 +539,68 @@ static void csfx__sighandler(int code, siginfo_t* info, void* context)
     switch (code)
     {
     case SIGILL:
-	errcode = HOTDYLIB_ERROR_ILLCODE;
-	break;
+	    errcode = HOTDYLIB_ERROR_ILLCODE;
+	    break;
 
     case SIGBUS:
-	errcode = HOTDYLIB_ERROR_MISALIGN;
-	break;
+	    errcode = HOTDYLIB_ERROR_MISALIGN;
+	    break;
 
     case SIGSYS:
-	errcode = HOTDYLIB_ERROR_SYSCALL;
-	break;
+	    errcode = HOTDYLIB_ERROR_SYSCALL;
+	    break;
 
     case SIGABRT:
-	errcode = HOTDYLIB_ERROR_ABORT;
-	break;
+	    errcode = HOTDYLIB_ERROR_ABORT;
+	    break;
 
     case SIGSEGV:
-	errcode = HOTDYLIB_ERROR_SEGFAULT;
-	break;
+	    errcode = HOTDYLIB_ERROR_SEGFAULT;
+	    break;
 	
     default:
-	errcode = HOTDYLIB_ERROR_NONE;
-	break;
-    }
-    siglongjmp(csfx__jmpenv, errcode);
-}
-
-
-int  HotDylib_Begin(void)
-{
-    struct sigaction sa;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags     = SA_SIGINFO | SA_RESTART | SA_NODEFER;
-    sa.sa_handler   = NULL;
-    sa.sa_sigaction = csfx__sighandler;
-
-    int idx;
-    for (idx = 0; idx < csfx__countof(csfx__signals); idx++)
-    {
-	if (sigaction(csfx__signals[idx], &sa, NULL) != 0)
-	{
-	    return -1;
-	}
-    }
-
-    return 0;
-}
-
-void HotDylib_End(void)
-{
-    int idx;
-    for (idx = 0; idx < csfx__countof(csfx__signals); idx++)
-    {
-	if (signal(csfx__signals[idx], SIG_DFL) != 0)
-	{
+	    errcode = HOTDYLIB_ERROR_NONE;
 	    break;
-	}
+    }
+
+    siglongjmp(s_filterStack[s_filterStackPointer].lib->jumpPoint, errcode);
+}
+
+
+bool HotDylib_SEHBegin(HotDylib* lib)
+{
+    if (s_filterStackPointer < 0)
+    {
+        struct sigaction sa;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags     = SA_SIGINFO | SA_RESTART | SA_NODEFER;
+        sa.sa_handler   = NULL;
+        sa.sa_sigaction = HotDylib_SignalHandler;
+
+        int idx;
+        for (idx = 0; idx < HotDylib_CountOf(HotDylib_Signals); idx++)
+        {
+	        if (sigaction(HotDylib_Signals[idx], &sa, NULL) != 0)
+	        {
+	            return false;
+	        }
+        }
+
+        SehFilter* filter   = &s_filterStack[++s_filterStackPointer];
+        filter->lib         = lib;
+    }
+    return true;
+}
+
+void HotDylib_SEHEnd(HotDylib* lib)
+{
+    int idx;
+    for (idx = 0; idx < HotDylib_CountOf(HotDylib_Signals); idx++)
+    {
+	    if (signal(HotDylib_Signals[idx], SIG_DFL) != 0)
+	    {
+	        assert(false);
+	    }
     }
 }
 #else
@@ -590,18 +621,8 @@ static int HotDylib_GetTempPath(const char* path, char* buffer, int length)
         int version = 0;
         while (1)
         {
-            res = snprintf(buffer, length, "%s.%d", path, version++);
-
-        #if defined(_MSC_VER) && _MSC_VER >= 1200
-            FILE* file;
-            if (fopen_s(&file, buffer, "r") != 0)
-            {
-                file = NULL;
-            }
-        #else
+            res        = snprintf(buffer, length, "%s.%d", path, version++);
             FILE* file = fopen(buffer, "r");
-        #endif
-
             if (file)
             {
                 fclose(file);
@@ -651,13 +672,14 @@ static int HotDylib_CheckFileChanged(HotDylibFileTime* ft)
     }
 }
 
-static int HotDylib_CallMain(HotDylib* lib, void* library, int state)
+static bool HotDylib_CallMain(HotDylib* lib, void* library, int state)
 {
     typedef void* (*HotDylibMainFn)(void*, int, int);
 
     const char*     name = "HotDylibMain";
     HotDylibMainFn  func = (HotDylibMainFn)Dylib_GetSymbol(library, name);
 
+    bool res = true;
     if (func)
     {
         HOTDYLIB_TRY (lib)
@@ -666,15 +688,19 @@ static int HotDylib_CallMain(HotDylib* lib, void* library, int state)
         }
         HOTDYLIB_EXCEPT (lib)
         {
-            return -1;
+            res = false;
+        }
+        HOTDYLIB_FINALLY (lib)
+        {
+            /*null statement*/
         }
     }
 
-    return 0;
+    return true;
 }
 
 /* @impl: HotDylibInit */
-void HotDylibInit(HotDylib* lib, const char* libpath)
+bool HotDylibInit(HotDylib* lib, const char* libpath)
 {
     lib->state    = HOTDYLIB_NONE;
     lib->errcode  = HOTDYLIB_ERROR_NONE;
@@ -691,11 +717,7 @@ void HotDylibInit(HotDylib* lib, const char* libpath)
         data->library = NULL;
         HotDylib_GetTempPath(libpath, data->libTempPath, HOTDYLIB_MAX_PATH);
     
-    #if defined(_MSC_VER) && _MSC_VER >= 1200
-        strncpy_s(data->libRealPath, HOTDYLIB_MAX_PATH, libpath, HOTDYLIB_MAX_PATH);
-    #else
         strncpy(data->libRealPath, libpath, HOTDYLIB_MAX_PATH);
-    #endif
     
     #if defined(_MSC_VER) && defined(HOTDYLIB_PDB_UNLOCK)
         data->delpdb  = FALSE;
@@ -704,6 +726,8 @@ void HotDylibInit(HotDylib* lib, const char* libpath)
         HotDylib_GetTempPath(data->pdbRealPath, data->pdbTempPath, HOTDYLIB_MAX_PATH);
     #endif
     }
+
+    return data != NULL;
 }
 
 void HotDylibFree(HotDylib* lib)

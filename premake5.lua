@@ -11,6 +11,9 @@ do
     
     startproject "HotDylib.Test"
 
+    rtti "off"
+    exceptionhandling "off"
+
     filter {}
 end
 

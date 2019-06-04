@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <setjmp.h>
+
 #ifndef HOTDYLIB_API
 #define HOTDYLIB_API
 #endif
@@ -36,6 +38,7 @@ enum
 {
     HOTDYLIB_ERROR_NONE,
     HOTDYLIB_ERROR_ABORT,
+    HOTDYLIB_ERROR_FLOAT,
     HOTDYLIB_ERROR_ILLCODE,
     HOTDYLIB_ERROR_SYSCALL,
     HOTDYLIB_ERROR_MISALIGN,
@@ -49,10 +52,17 @@ enum
  */
 typedef struct HotDylib
 {
-    int   state;
-    int   errcode;
-    void* userdata;
-    char  internal[sizeof(void*)];
+    int         state;
+    int         errcode;
+    void*       userdata;
+
+#ifdef __unix__
+    sigjmp_buf  jumpPoint;
+#else
+    jmp_buf     jumpPoint;
+#endif
+
+    char        internal[sizeof(void*)];
 } HotDylib;
 
 /**
@@ -65,9 +75,6 @@ typedef struct
 } HotDylibFileTime;
 
 /** Hot reload library API **/
-
-HOTDYLIB_API bool  HotDylib_Begin(void);
-HOTDYLIB_API void  HotDylib_End(void);
 
 /**
  * Initialize lib
@@ -94,49 +101,21 @@ HOTDYLIB_API void* HotDylibGetSymbol(HotDylib* lib, const char* name);
  */
 HOTDYLIB_API const char* HotDylibGetError(const HotDylib* lib);
 
-#if defined(_WIN32)
 /* Undocumented, should not call by hand */
-HOTDYLIB_API int HotDylib_SehFilter(HotDylib* lib, unsigned long code);
-#endif
+HOTDYLIB_API bool   HotDylib_SEHBegin(HotDylib* lib);
 
-#if defined(_MSC_VER)
-# define HOTDYLIB_TRY(s)    HotDylib_Begin(); __try
-# define HOTDYLIB_EXCEPT(s) __except(HotDylib_SehFilter(s, GetExceptionCode()))
-# define HOTDYLIB_FINALLY   __finally HotDylib_End(); if (true)
+/* Undocumented, should not call by hand */
+HOTDYLIB_API void   HotDylib_SEHEnd(HotDylib* lib);
+
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined(_WIN32)
+#   define HOTDYLIB_TRY(lib)      if (HotDylib_SEHBegin(lib) && _setjmp((lib)->jumpPoint) == 0)
+#   define HOTDYLIB_EXCEPT(lib)   else
+#   define HOTDYLIB_FINALLY(lib)  HotDylib_SEHEnd(lib); if (1)
 #elif (__unix__)
-# include <signal.h>
-# include <setjmp.h>
-# define HOTDYLIB_TRY(s)							\
-    (s)->errcode = sigsetjmp(csfx__jmpenv, 0);				\
-    if ((s)->errcode == 0) (s)->errcode = HOTDYLIB_ERROR_NONE;		\
-    if ((s)->errcode == HOTDYLIB_ERROR_NONE)
-
-# define HOTDYLIB_EXCEPT(s) else if (csfx__errcode_filter(s))
-# define HOTDYLIB_FINALLY   
-# define csfx__errcode_filter(s)					\
-    (s)->errcode > HOTDYLIB_ERROR_NONE					\
-    && (s)->errcode <= HOTDYLIB_ERROR_STACKOVERFLOW
-
-extern __thread sigjmp_buf csfx__jmpenv;
-#else
-# include <signal.h>
-# include <setjmp.h>
-# define HOTDYLIB_TRY(s)						\
-    (s)->errcode = setjmp(csfx__jmpenv);			\
-    if ((s)->errcode == 0) (s)->errcode = HOTDYLIB_ERROR_NONE;	\
-    if ((s)->errcode == HOTDYLIB_ERROR_NONE)
-
-# define HOTDYLIB_EXCEPT(s) else if (csfx__errcode_filter(s))
-# define HOTDYLIB_FINALLY   
-# define csfx__errcode_filter(s)					\
-    (s)->errcode > HOTDYLIB_ERROR_NONE					\
-    && (s)->errcode <= HOTDYLIB_ERROR_STACKOVERFLOW
-
-extern
-# if defined(__MINGW32__)
-__thread
-# endif
-jmp_buf csfx__jmpenv;
+#   include <signal.h>
+#   define HOTDYLIB_TRY(lib)      if (HotDylib_SEHBegin(lib) && sigsetjmp((lib)->jumpPoint) == 0)
+#   define HOTDYLIB_EXCEPT(lib)   else
+#   define HOTDYLIB_FINALLY(lib)  HotDylib_SEHEnd(lib); if (1)
 #endif
 
 /**
