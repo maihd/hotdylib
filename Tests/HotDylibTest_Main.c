@@ -1,14 +1,12 @@
 #include "../HotDylib.h"
 
 #include <Windows.h>
+#include <fileapi.h>
 
 int main(void)
 {
     HotDylib lib;
     HotDylibInit(&lib, "bin/x32/Debug/HotDylib.LibTest.dll");
-
-    char directory[1024];
-    GetCurrentDirectoryA(sizeof(directory), directory);
 
     while (1)
     {

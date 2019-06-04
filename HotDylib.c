@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #include "HotDylib.h"
 
 #ifdef HOTDYLIB_PDB_DELETE
@@ -8,7 +10,7 @@
 #define HOTDYLIB_PDB_UNLOCK 1
 #endif
 
-#define HOTDYLIB_MAX_PATH 256
+#define HOTDYLIB_MAX_PATH 1024
 
 typedef struct
 {
@@ -175,13 +177,13 @@ typedef struct
     UNICODE_STRING Name;
 } OBJECT_INFORMATION;
 
-static BOOL HotDylib_PathCompare(LPCWSTR path0, LPCWSTR path1)
+static bool HotDylib_PathCompare(LPCWSTR path0, LPCWSTR path1)
 {
     //Get file handles
     HANDLE handle1 = CreateFileW(path0, 0, FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     HANDLE handle2 = CreateFileW(path1, 0, FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
-    BOOL result = FALSE;
+    bool result = FALSE;
 
     //if we could open both paths...
     if (handle1 != INVALID_HANDLE_VALUE && handle2 != INVALID_HANDLE_VALUE)
@@ -242,72 +244,43 @@ static void HotDylib_UnlockFileFromProcess(HANDLE heap, SYSTEM_HANDLE_INFORMATIO
             {
                 HeapFree(heap, 0, pobj); 
                 continue;
-            }                  
+            }     
 
-        #if 0
-            const WCHAR prefix[] = L"\\Device\\HarddiskVolume";
-            const ULONG prefix_length = sizeof(prefix) / sizeof(prefix[0]) - 1;
-            if (pobj->Name.Buffer && wcsncmp(pobj->Name.Buffer, prefix, prefix_length) == 0)
-            {                          
-                int volume;                   
-                WCHAR path0[HOTDYLIB_MAX_PATH];
-                WCHAR path1[HOTDYLIB_MAX_PATH];
+            WCHAR prefix[1024];
+            WCHAR volumeName[8];
+            GetVolumePathNameW(
+                file,
+                volumeName,
+                sizeof(volumeName)
+            );
+            
+            volumeName[2] = 0;
+            DWORD prefix_length = QueryDosDeviceW(
+                volumeName,
+                prefix,
+                sizeof(prefix)
+            );
+            wcscat(prefix, L"\\");
 
-            #if _MSC_VER >= 1200
-                swscanf_s(pobj->Name.Buffer + prefix_length, L"%d\\%s", &volume, path0, _countof(path0));
-            #else
-                swscanf(pobj->Name.Buffer + prefix_length, L"%d\\%s", &volume, path0);
-            #endif
-
-                WCHAR fullpath[HOTDYLIB_MAX_PATH];
-                GetVolumePathNameW(file, fullpath, HOTDYLIB_MAX_PATH);
-                wsprintfW(path1, L"%c:\\%s", 'A' + volume - 1, path0);
-
-                if (wcscmp(pobj->Name.Buffer, file) == 0)
-                {
-                    HANDLE hForClose;
-                    DuplicateHandle(hProcess, handle, hCurProcess, &hForClose, MAXIMUM_ALLOWED, FALSE, DUPLICATE_CLOSE_SOURCE);
-                    CloseHandle(hForClose);
-                }
-            }
-        #endif
-
-
-            const WCHAR prefix[] = L"\\Device\\HarddiskVolume";
-            const ULONG prefix_length = sizeof(prefix) / sizeof(prefix[0]) - 1;
-            if (pobj->Name.Buffer && wcsncmp(pobj->Name.Buffer, prefix, prefix_length) == 0)
+            if (!pobj->Name.Buffer)
             {
-                WCHAR temp0[HOTDYLIB_MAX_PATH];
-                WCHAR temp1[HOTDYLIB_MAX_PATH];
+                continue;
+            }
 
-                int volume;
-                swscanf_s(pobj->Name.Buffer + prefix_length, L"%d", &volume);
-                wsprintfW(temp0, L"\\Device\\HarddiskVolume%d", volume);
-                if (QueryDosDevice(temp0, temp1, HOTDYLIB_MAX_PATH) == 0)
-                {
-                    volume = 0;
-                    DWORD error = GetLastError();
-                    if (error == ERROR_INSUFFICIENT_BUFFER)
-                    {
-                        error = 0;
-                    }
-                }
-
+            prefix_length = wcslen(prefix);
+            if (wcsncmp(pobj->Name.Buffer, prefix, prefix_length) == 0)
+            {
                 WCHAR path0[HOTDYLIB_MAX_PATH];
                 WCHAR path1[HOTDYLIB_MAX_PATH];
 
-            #if _MSC_VER >= 1200
-                swscanf_s(pobj->Name.Buffer + prefix_length, L"%s", path0, _countof(path0));
-            #else
                 swscanf(pobj->Name.Buffer + prefix_length, L"%s", path0);
-            #endif                                            
 
-                wsprintfW(path1, L"\\?\\HarddiskVolume%s", path0);
+                wsprintfW(path1, L"%s\\%s", volumeName, path0);
 
                 if (HotDylib_PathCompare(path1, file))
                 {
                     HANDLE hForClose;
-                    DuplicateHandle(hProcess, handle, hCurProcess, &hForClose, MAXIMUM_ALLOWED, FALSE, DUPLICATE_CLOSE_SOURCE);
+                    DuplicateHandle(hProcess, handle, hCurProcess, &hForClose, MAXIMUM_ALLOWED, false, DUPLICATE_CLOSE_SOURCE);
                     CloseHandle(hForClose);
                 }
             }
@@ -323,16 +296,16 @@ static void HotDylib_UnlockFileFromProcess(HANDLE heap, SYSTEM_HANDLE_INFORMATIO
 static SYSTEM_HANDLE_INFORMATION* HotDylib_CreateSystemInfo(void)
 {                          
     size_t sys_info_size = 0;
-    HANDLE heap_handle   = GetProcessHeap();
-    SYSTEM_HANDLE_INFORMATION* sys_info = NULL;
+    HANDLE heap          = GetProcessHeap();
+    SYSTEM_HANDLE_INFORMATION* sys_info = 0;
     {
         ULONG res;
         NTSTATUS status;
         do
         {
-            HeapFree(heap_handle, 0, sys_info);
+            HeapFree(heap, 0, sys_info);
             sys_info_size += 4096;
-            sys_info = (SYSTEM_HANDLE_INFORMATION*)HeapAlloc(heap_handle, 0, sys_info_size);
+            sys_info = (SYSTEM_HANDLE_INFORMATION*)HeapAlloc(heap, 0, sys_info_size);
             status = NtQuerySystemInformation(SystemHandleInformation, sys_info, sys_info_size, &res);
         } while (status == NTSTATUS_INFO_LENGTH_MISMATCH);
     }
@@ -342,7 +315,7 @@ static SYSTEM_HANDLE_INFORMATION* HotDylib_CreateSystemInfo(void)
 
 static DWORD WINAPI HotDylib_UnlockPdbFileThread(void* userdata)
 {
-    HANDLE heap_handle = GetProcessHeap();
+    HANDLE heap = GetProcessHeap();
     const struct ThreadInput
     {
         HotDylibData*   lib;
@@ -374,7 +347,7 @@ static DWORD WINAPI HotDylib_UnlockPdbFileThread(void* userdata)
                 for (i = 0; i < nProcInfo; i++)
                 {                                            
                     if (!sys_info) sys_info = HotDylib_CreateSystemInfo();
-                    HotDylib_UnlockFileFromProcess(heap_handle, sys_info, rgpi[i].Process.dwProcessId, szFile);
+                    HotDylib_UnlockFileFromProcess(heap, sys_info, rgpi[i].Process.dwProcessId, szFile);
                 }
             }
         }
@@ -407,20 +380,22 @@ static DWORD WINAPI HotDylib_UnlockPdbFileThread(void* userdata)
 #endif
 
     /* Clean up */
-    HeapFree(heap_handle, 0, sys_info);
-    HeapFree(heap_handle, 0, (void*)data);
+    HeapFree(heap, 0, sys_info);
+    HeapFree(heap, 0, (void*)data);
 
     return 0;
 }
 
 static void HotDylib_UnlockPdbFile(HotDylibData* lib, const char* file)
 {
-    HANDLE heap_handle = GetProcessHeap();
     struct ThreadInput
     {
         HotDylibData*   lib;
         WCHAR           szFile[1];
-    }* data = (struct ThreadInput*)HeapAlloc(heap_handle, 0, sizeof(struct ThreadInput) + HOTDYLIB_MAX_PATH);
+    };
+
+    HANDLE              heap = GetProcessHeap();
+    struct ThreadInput* data = (struct ThreadInput*)HeapAlloc(heap, 0, sizeof(struct ThreadInput) + HOTDYLIB_MAX_PATH);
 
     data->lib = lib;
     MultiByteToWideChar(CP_UTF8, 0, file, -1, data->szFile, HOTDYLIB_MAX_PATH);

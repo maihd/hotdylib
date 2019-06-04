@@ -3,6 +3,6 @@
 
 void* HotDylibMain(void* userdata, int oldState, int newState)
 {
-    printf("HotDylibMain\n");
+    printf("HotDylibMain Changed\n");
     return 0;
 }
