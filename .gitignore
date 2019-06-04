@@ -2,3 +2,6 @@
 .vscode
 .DS_Store
 
+/Build/x64
+/Build/bin
+/Build/obj
