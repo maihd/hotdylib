@@ -36,8 +36,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     
     app_create_window(hInstance);
 
-    HotDylib lib;
-    HotDylibInit(&lib, "script.dll");
+    HotDylib* lib = HotDylibOpen("script.dll", "script_main");
 
     HotDylibFileTime files[] = {
 	    { 0, "script.c" },
@@ -46,7 +45,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     
     while (!app_isquit())
     {
-        app_update(&lib);
+        app_update(lib);
         
         if (HotDylibWatchFiles(files, countof(files)))
         {
@@ -60,6 +59,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     printf("\n");
     printf("======================================\n");
     
-    HotDylibFree(&lib);
+    HotDylibFree(lib);
     return 0;
 }

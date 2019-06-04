@@ -5,12 +5,10 @@
 
 int main(void)
 {
-    HotDylib lib;
-    HotDylibInit(&lib, "bin/x32/Debug/HotDylib.LibTest.dll");
-
+    HotDylib* lib = HotDylibOpen("bin/x32/Debug/HotDylib.LibTest.dll", "HotDylibMain");
     while (1)
     {
-        int code = HotDylibUpdate(&lib);
+        int code = HotDylibUpdate(lib);
         switch (code)
         {
 
@@ -19,6 +17,6 @@ int main(void)
         Sleep(1000);
     }
 
-    HotDylibFree(&lib);
+    HotDylibFree(lib);
     return 0;
 }

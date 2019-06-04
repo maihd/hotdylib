@@ -53,72 +53,33 @@ typedef struct HotDylib
     int     state;
     int     errcode;
     void*   userdata;
-    char    internal[sizeof(void*)];
+    char    entryName[256];
 } HotDylib;
 
 /**
- * File data structure
+ * Open an hot dynamic library, path can be not exists from open moment
  */
-typedef struct
-{
-    long        time;
-    const char* path;
-} HotDylibFileTime;
-
-/** Hot reload library API **/
+HOTDYLIB_API HotDylib*      HotDylibOpen(const char* path, const char* entryName);
 
 /**
- * Initialize lib
+ * Free usage memory and close opened files by hot dynamic library
  */
-HOTDYLIB_API bool  HotDylibInit(HotDylib* lib, const char* path);
-
-/**
- * Free memory usage by lib, unload library and raise quit event
- */
-HOTDYLIB_API void  HotDylibFree(HotDylib* lib);
+HOTDYLIB_API void           HotDylibFree(HotDylib* lib);
 
 /**
  * Update lib, check for changed library and reload
  */
-HOTDYLIB_API int   HotDylibUpdate(HotDylib* lib);
+HOTDYLIB_API int            HotDylibUpdate(HotDylib* lib);
 
 /**
- * Get an symbol address from lib
+ * Get an symbol address from library with symbol's name
  */
-HOTDYLIB_API void* HotDylibGetSymbol(HotDylib* lib, const char* name);
+HOTDYLIB_API void*          HotDylibGetSymbol(const HotDylib* lib, const char* symbolName);
 
 /**
- * Get error message of lib
+ * Get error message of hot dynamic library from last update
  */
-HOTDYLIB_API const char* HotDylibGetError(const HotDylib* lib);
-
-/**
- * Watch for files or directories is changed
- * @note: if change the directory after received a changed event
- *        ensure call this again to update time to ignore change
- * @example: 
- *        HotDylibFileTime dir = { 0, "<dirpath>" };
- *        HotDylibWatchFiles(&dir, 1); // Initialize
- *        ...
- *        if (HotDylibWatchFiles(&dir, 1))
- *        {
- *            ... some operations on <dirpath>
- *            HotDylibWatchFiles(&dir, 1); // Ignore change
- *        }
- */
-HOTDYLIB_API bool HotDylibWatchFiles(HotDylibFileTime* files, int count);
-
-/**
- * Script main function
- */
-#if defined(_WIN32) || defined(__CYGWIN__)
-__declspec(dllexport)
-#elif defined(__GNUC__) || defined(__clang__)
-__attribute((visible("default")))
-#else
-extern
-#endif
-void* HotDylibMain(void* userdata, int old_state, int new_state);
+HOTDYLIB_API const char*    HotDylibGetError(const HotDylib* lib);
 
 /* END OF EXTERN "C" */
 #ifdef __cplusplus

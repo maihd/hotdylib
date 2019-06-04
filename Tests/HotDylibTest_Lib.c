@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include "../HotDylib.h"
 
-void* HotDylibMain(void* userdata, int oldState, int newState)
+__declspec(dllexport)
+void* HotDylibMain(void* userdata, int newState, int oldState)
 {
     printf("HotDylibMain Changed\n");
 

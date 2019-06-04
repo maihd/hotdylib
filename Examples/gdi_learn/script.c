@@ -1,11 +1,11 @@
-#include "app.h"
 #include <stdio.h>
 #include <Windows.h>
 #include <HotDylib.h>
 
-void* HotDylibMain(void* userdata, int old_state, int state)
+__declspec(dllexport)
+void* script_main(void* userdata, int newState, int oldState)
 {
-    switch (state)
+    switch (newState)
     {
     case HOTDYLIB_INIT:
 	    break;

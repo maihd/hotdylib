@@ -272,29 +272,29 @@ void app_update(HotDylib* lib)
     /* Call on_paint */
     if (app.on_paint)
     {
-	    HOTDYLIB_TRY (lib)
-        {
-            app.on_paint(app.backbuf.hdc, app.width, app.height);
-        }
-        HOTDYLIB_EXCEPT (lib)
-        {
-            app.on_paint = NULL;
-            switch (lib->errcode)
-            {
-            case HOTDYLIB_ERROR_SEGFAULT:
-                app_logerror("Segment fault");
-                break;
-            
-            case HOTDYLIB_ERROR_NONE:
-            default:
-                app_logerror("An error occur but received HOTDYLIB_ERROR_NONE");
-                break;
-            }
-        }
-        HOTDYLIB_FINALLY (lib)
-        {
-            /*null statement*/
-        }
+        app.on_paint(app.backbuf.hdc, app.width, app.height);
+	    //HOTDYLIB_TRY (lib)
+        //{
+        //}
+        //HOTDYLIB_EXCEPT (lib)
+        //{
+        //    app.on_paint = NULL;
+        //    switch (lib->errcode)
+        //    {
+        //    case HOTDYLIB_ERROR_SEGFAULT:
+        //        app_logerror("Segment fault");
+        //        break;
+        //    
+        //    case HOTDYLIB_ERROR_NONE:
+        //    default:
+        //        app_logerror("An error occur but received HOTDYLIB_ERROR_NONE");
+        //        break;
+        //    }
+        //}
+        //HOTDYLIB_FINALLY (lib)
+        //{
+        //    /*null statement*/
+        //}
     }
 
     /* Present the drawed bitmap in backbuffer */
