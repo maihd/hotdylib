@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include <setjmp.h>
-
 #ifndef HOTDYLIB_API
 #define HOTDYLIB_API
 #endif
@@ -52,17 +50,10 @@ enum
  */
 typedef struct HotDylib
 {
-    int         state;
-    int         errcode;
-    void*       userdata;
-
-#ifdef __unix__
-    sigjmp_buf  jumpPoint;
-#else
-    jmp_buf     jumpPoint;
-#endif
-
-    char        internal[sizeof(void*)];
+    int     state;
+    int     errcode;
+    void*   userdata;
+    char    internal[sizeof(void*)];
 } HotDylib;
 
 /**
@@ -100,23 +91,6 @@ HOTDYLIB_API void* HotDylibGetSymbol(HotDylib* lib, const char* name);
  * Get error message of lib
  */
 HOTDYLIB_API const char* HotDylibGetError(const HotDylib* lib);
-
-/* Undocumented, should not call by hand */
-HOTDYLIB_API bool   HotDylib_SEHBegin(HotDylib* lib);
-
-/* Undocumented, should not call by hand */
-HOTDYLIB_API void   HotDylib_SEHEnd(HotDylib* lib);
-
-#if defined(_MSC_VER) || defined(__MINGW32__) || defined(_WIN32)
-#   define HOTDYLIB_TRY(lib)      if (HotDylib_SEHBegin(lib) && _setjmp((lib)->jumpPoint) == 0)
-#   define HOTDYLIB_EXCEPT(lib)   else
-#   define HOTDYLIB_FINALLY(lib)  HotDylib_SEHEnd(lib); if (1)
-#elif (__unix__)
-#   include <signal.h>
-#   define HOTDYLIB_TRY(lib)      if (HotDylib_SEHBegin(lib) && sigsetjmp((lib)->jumpPoint) == 0)
-#   define HOTDYLIB_EXCEPT(lib)   else
-#   define HOTDYLIB_FINALLY(lib)  HotDylib_SEHEnd(lib); if (1)
-#endif
 
 /**
  * Watch for files or directories is changed

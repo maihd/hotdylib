@@ -4,8 +4,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <setjmp.h>
+#include <signal.h>
 
 #include "HotDylib.h"
+
+/* Undocumented, should not call by hand */
+HOTDYLIB_API bool   HotDylib_SEHBegin(HotDylib* lib);
+
+/* Undocumented, should not call by hand */
+HOTDYLIB_API void   HotDylib_SEHEnd(HotDylib* lib);
+
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined(_WIN32)
+#   define HOTDYLIB_TRY(jumpPoint)      if (HotDylib_SEHBegin(&(jumpPoint)) && _setjmp(jumpPoint) == 0)
+#   define HOTDYLIB_EXCEPT(jumpPoint)   else
+#   define HOTDYLIB_FINALLY(jumpPoint)  HotDylib_SEHEnd(&(jumpPoint)); if (1)
+#elif (__unix__)
+#   define HOTDYLIB_TRY(lib)      if (HotDylib_SEHBegin(lib) && sigsetjmp((lib)->jumpPoint) == 0)
+#   define HOTDYLIB_EXCEPT(lib)   else
+#   define HOTDYLIB_FINALLY(lib)  HotDylib_SEHEnd(lib); if (1)
+#endif
 
 #ifdef HOTDYLIB_PDB_DELETE
 #define HOTDYLIB_PDB_UNLOCK 1
@@ -392,12 +410,55 @@ static int HotDylib_GetPdbPath(const char* libpath, char* buf, int len)
     return snprintf(buf, len, "%s%s%s.pdb", drv, dir, name);
 }
 #  endif /* HOTDYLIB_PDB_UNLOCK */
-# endif /* _MSC_VER */
+static int HotDylib_SEHFilter(HotDylib* lib, int excode)
+{
+    int errcode = HOTDYLIB_ERROR_NONE;
 
+    switch (excode)
+    {
+    case EXCEPTION_FLT_OVERFLOW:
+    case EXCEPTION_FLT_UNDERFLOW:
+    case EXCEPTION_FLT_STACK_CHECK:
+    case EXCEPTION_FLT_DIVIDE_BY_ZERO:
+    case EXCEPTION_FLT_INEXACT_RESULT:
+    case EXCEPTION_FLT_DENORMAL_OPERAND:
+    case EXCEPTION_FLT_INVALID_OPERATION:
+        errcode = HOTDYLIB_ERROR_FLOAT;
+        break;
+
+    case EXCEPTION_ACCESS_VIOLATION:
+        errcode = HOTDYLIB_ERROR_SEGFAULT;
+        break;
+
+    case EXCEPTION_ILLEGAL_INSTRUCTION:
+        errcode = HOTDYLIB_ERROR_ILLCODE;
+        break;
+
+    case EXCEPTION_DATATYPE_MISALIGNMENT:
+        errcode = HOTDYLIB_ERROR_MISALIGN;
+        break;
+
+    case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+        errcode = HOTDYLIB_ERROR_OUTBOUNDS;
+        break;
+
+    case EXCEPTION_STACK_OVERFLOW:
+        errcode = HOTDYLIB_ERROR_STACKOVERFLOW;
+        break;
+
+    default:
+        break;
+    }
+
+    if (lib) lib->errcode = errcode;
+    int rc = errcode != HOTDYLIB_ERROR_NONE;
+    return rc;
+}
+# else
 typedef struct SehFilter
 {
     int                             ref;
-    HotDylib*                       lib;
+    jmp_buf*                        jumpPoint;
     LPTOP_LEVEL_EXCEPTION_FILTER    oldHandler;
 } SehFilter;
 
@@ -456,16 +517,16 @@ static LONG WINAPI HotDylib_SignalHandler(EXCEPTION_POINTERS* info)
     int excode  = (int)info->ExceptionRecord->ExceptionCode;
     int errcode = HotDylib_SEHFilter(NULL, excode);
 
-    longjmp(s_filterStack[s_filterStackPointer].lib->jumpPoint, errcode);
+    longjmp(*s_filterStack[s_filterStackPointer].jumpPoint, errcode);
 
     return EXCEPTION_CONTINUE_EXECUTION;
 }
 
-bool HotDylib_SEHBegin(HotDylib* lib)
+bool HotDylib_SEHBegin(jmp_buf* jumpPoint)
 {
-    assert(lib);
+    assert(jumpPoint);
 
-    if (s_filterStack[s_filterStackPointer].lib == lib)
+    if (s_filterStack[s_filterStackPointer].jumpPoint == jumpPoint)
     {
         s_filterStack[s_filterStackPointer].ref++;
     }
@@ -475,17 +536,17 @@ bool HotDylib_SEHBegin(HotDylib* lib)
 
         SehFilter* filter   = &s_filterStack[++s_filterStackPointer];
         filter->ref         = 0;
-        filter->lib         = lib;
+        filter->jumpPoint   = jumpPoint;
         filter->oldHandler  = SetUnhandledExceptionFilter(HotDylib_SignalHandler);
     }
 
     return true;
 }
 
-void HotDylib_SEHEnd(HotDylib* lib)
+void HotDylib_SEHEnd(jmp_buf* jumpPoint)
 {
-    assert(lib);
-    assert(s_filterStackPointer > -1 && s_filterStack[s_filterStackPointer].lib == lib);
+    assert(jumpPoint);
+    assert(s_filterStackPointer > -1 && s_filterStack[s_filterStackPointer].jumpPoint == jumpPoint);
 
     SehFilter* filter = &s_filterStack[s_filterStackPointer];
     if (--filter->ref <= 0)
@@ -494,6 +555,7 @@ void HotDylib_SEHEnd(HotDylib* lib)
         SetUnhandledExceptionFilter(filter->oldHandler);
     }
 }
+# endif /* _MSC_VER */
 
 #elif defined(__unix__)
 #   include <sys/stat.h>
@@ -682,21 +744,33 @@ static bool HotDylib_CallMain(HotDylib* lib, void* library, int state)
     bool res = true;
     if (func)
     {
-        HOTDYLIB_TRY (lib)
+#if defined(_MSC_VER)
+        __try
         {
             lib->userdata = func(lib->userdata, lib->state, state);
         }
-        HOTDYLIB_EXCEPT (lib)
+        __except (HotDylib_SEHFilter(lib, GetExceptionCode()))
         {
             res = false;
         }
-        HOTDYLIB_FINALLY (lib)
+#else
+        jmp_buf jmpPoint;
+        HOTDYLIB_TRY (jmpPoint)
+        {
+            lib->userdata = func(lib->userdata, lib->state, state);
+        }
+        HOTDYLIB_EXCEPT (jmpPoint)
+        {
+            res = false;
+        }
+        HOTDYLIB_FINALLY (jmpPoint)
         {
             /*null statement*/
         }
+#endif
     }
 
-    return true;
+    return res;
 }
 
 /* @impl: HotDylibInit */

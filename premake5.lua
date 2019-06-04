@@ -12,7 +12,7 @@ do
     startproject "HotDylib.Test"
 
     rtti "off"
-    exceptionhandling "off"
+    exceptionhandling "SEH"
 
     filter {}
 end
