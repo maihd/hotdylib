@@ -1,4 +1,4 @@
-#include "HotDylibEx.c"
+#include "HotDylibEx.h"
 
 #if defined(_WIN32)
 static long HotDylib_GetLastModifyTime(const char* path)

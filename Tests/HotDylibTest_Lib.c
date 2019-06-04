@@ -4,9 +4,9 @@
 __declspec(dllexport)
 void* HotDylibMain(void* userdata, int newState, int oldState)
 {
-    printf("HotDylibMain Changed\n");
+    printf("HotDylibMain\n");
 
-    int* ptr = 0;
-    *ptr = 0;
+    //int* ptr = 0;
+    //*ptr = 0;
     return 0;
 }

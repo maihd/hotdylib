@@ -8,7 +8,12 @@
 #include <HotDylib.h>
 #include <HotDylib.c>
 
+#pragma comment(lib, "Gdi32.lib")
+
 typedef void (*paint_f)(HDC hdc, int width, int height);
+
+
+#define APP_TITLE TEXT("GDI Scripting")
 
 /**
  * Application state
@@ -37,7 +42,7 @@ void app_sighandler(int sig)
 {
     if (sig == SIGINT)
     {
-	app.quit = 1;
+	    app.quit = 1;
     }
 }
 
@@ -125,25 +130,25 @@ static LRESULT CALLBACK app_wndproc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 {
     switch (msg)
     {
-    case WM_CLOSE:
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
-
     case WM_QUIT:
         app.quit = 1;
-        break;
+        return 0;
+
+    //case WM_CLOSE:
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        return 0;
 
     case WM_PAINT:
 	    break;
 
     case WM_CREATE:
         app_init(hwnd);
-	    break;
+        break;
 
     case WM_SIZE:
         app_resize();
-        break;
+        return 0;
     }
     
     return DefWindowProc(hwnd, msg, w, l);
@@ -224,8 +229,8 @@ void app_create_window(void* hInstance)
 
     wndclass.hInstance     = (HINSTANCE)hInstance;
     wndclass.lpfnWndProc   = app_wndproc;
-    wndclass.lpszClassName = "__wndclass__";
-    wndclass.style         = CS_DBLCLKS | CS_VREDRAW | CS_HREDRAW;
+    wndclass.lpszClassName = TEXT("__wndclass__");
+    wndclass.style         = CS_DBLCLKS | CS_VREDRAW | CS_HREDRAW | CS_OWNDC;
     //wndclass.hbrBackground = GetStockObject(BLACK_BRUSH);
     wndclass.hIcon         = LoadIcon(NULL, IDI_APPLICATION);
     wndclass.hCursor       = LoadCursor(NULL, IDC_ARROW);
@@ -255,13 +260,15 @@ void app_update(HotDylib* lib)
     MSG msg;
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
     {
-        TranslateMessage(&msg); 
-        DispatchMessage(&msg);
-    }
-
-    if (msg.message == WM_QUIT)
-    {
-	    app.quit = 1;
+        if (msg.message == WM_QUIT)
+        {
+            app.quit = 1;
+        }
+        else
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
     }
 
     /*******************/

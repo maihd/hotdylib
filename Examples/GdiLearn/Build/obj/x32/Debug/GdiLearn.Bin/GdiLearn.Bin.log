@@ -1,0 +1,5 @@
+﻿  main.c
+d:\hotdylib\hotdylibex.c(49): warning C4273: 'HotDylibWatchFiles': inconsistent dll linkage
+  d:\hotdylib\hotdylibex.h(31): note: see previous definition of 'HotDylibWatchFiles'
+d:\hotdylib\examples\gdilearn\main.c(26): warning C4133: 'function': incompatible types - from 'STARTUPINFO *' to 'LPSTARTUPINFOA'
+  GdiLearn.Bin.vcxproj -> D:\hotdylib\Examples\GdiLearn\Build\bin\x32\Debug\GdiLearn.Bin.exe

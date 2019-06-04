@@ -5,6 +5,9 @@
 
 #include "app.h"
 
+#include <HotDylibEx.h>
+#include <HotDylibEx.c>
+
 #define countof(x) (sizeof(x) / sizeof((x)[0]))
 
 static void execute_and_wait(const char* cmd)
@@ -36,22 +39,36 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     
     app_create_window(hInstance);
 
-    HotDylib* lib = HotDylibOpen("script.dll", "script_main");
+#ifndef _WIN64
+#ifndef NDEBUG
+    const char* path = "bin/x32/Debug/GdiLearn.Script.dll";
+#else
+    const char* path = "bin/x32/Release/GdiLearn.Script.dll";
+#endif
+#else
+#ifndef NDEBUG
+    const char* path = "bin/x64/Debug/GdiLearn.Script.dll";
+#else
+    const char* path = "bin/x64/Release/GdiLearn.Script.dll";
+#endif
+#endif
 
-    HotDylibFileTime files[] = {
-	    { 0, "script.c" },
-    };
-    HotDylibWatchFiles(files, countof(files));
+    HotDylib* lib = HotDylibOpen(path, "script_main");
+
+    //HotDylibFileTime files[] = {
+	//    { 0, "../script.c" },
+    //};
+    //HotDylibWatchFiles(files, countof(files));
     
     while (!app_isquit())
     {
         app_update(lib);
         
-        if (HotDylibWatchFiles(files, countof(files)))
-        {
-            printf("Script has changed. Rebuilding...\n");
-            execute_and_wait("build_script.bat");
-        }
+        //if (HotDylibWatchFiles(files, countof(files)))
+        //{
+        //    printf("Script has changed. Rebuilding...\n");
+        //    execute_and_wait("build_script.bat");
+        //}
 	
         app_usleep(1000);
     }

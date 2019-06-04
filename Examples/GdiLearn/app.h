@@ -1,15 +1,13 @@
 #ifndef __APP_H__
 #define __APP_H__
 
-#define APP_TITLE "GDI Scripting"
-
 #if defined(APP_EXPORT)
 #   define __api__  __declspec(dllexport)
 #else
 #   define __api__  __declspec(dllimport)
 #endif
 
-//#define HOTDYLIB_API __api__
+#define HOTDYLIB_API __api__
 #include <HotDylib.h>
 
 #include <stdio.h>
