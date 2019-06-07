@@ -129,7 +129,7 @@ static bool HotDylib_CopyFile(const char* from, const char* to)
     }
 }
 
-static int HotDylib_RemoveFile(const char* path);
+static bool HotDylib_RemoveFile(const char* path);
 
 #if defined(_MSC_VER)
 
@@ -142,62 +142,16 @@ static int HotDylib_RemoveFile(const char* path);
 #    define NTSTATUS_SUCCESS              ((NTSTATUS)0x00000000L)
 #    define NTSTATUS_INFO_LENGTH_MISMATCH ((NTSTATUS)0xc0000004L)
 
-// Undocumented SYSTEM_INFORMATION_CLASS: SystemHandleInformation
-#    define SystemHandleInformation ((SYSTEM_INFORMATION_CLASS)16)
-
-typedef struct
-{
-    ULONG       ProcessId;
-    BYTE        ObjectTypeNumber;
-    BYTE        Flags;
-    USHORT      Value;
-    PVOID       Address;
-    ACCESS_MASK GrantedAccess;
-} SYSTEM_HANDLE;
-
-typedef struct
-{
-    ULONG         HandleCount;
-    SYSTEM_HANDLE Handles[1];
-} SYSTEM_HANDLE_INFORMATION;
-
 typedef struct
 {
     UNICODE_STRING Name;
 } OBJECT_INFORMATION;
 
-static bool HotDylib_PathCompare(LPCWSTR path0, LPCWSTR path1)
-{
-    //Get file handles
-    HANDLE handle1 = CreateFileW(path0, 0, FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    HANDLE handle2 = CreateFileW(path1, 0, FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-
-    bool result = FALSE;
-
-    //if we could open both paths...
-    if (handle1 != INVALID_HANDLE_VALUE && handle2 != INVALID_HANDLE_VALUE)
-    {
-        BY_HANDLE_FILE_INFORMATION fileInfo1;
-        BY_HANDLE_FILE_INFORMATION fileInfo2;
-        if (GetFileInformationByHandle(handle1, &fileInfo1) && GetFileInformationByHandle(handle2, &fileInfo2))
-        {
-            //the paths are the same if they refer to the same file (fileindex) on the same volume (volume serial number)
-            result = 
-                fileInfo1.dwVolumeSerialNumber == fileInfo2.dwVolumeSerialNumber &&
-                fileInfo1.nFileIndexHigh == fileInfo2.nFileIndexHigh &&
-                fileInfo1.nFileIndexLow == fileInfo2.nFileIndexLow;
-        }
-    }
-
-    // free the handles
-    CloseHandle(handle1);
-    CloseHandle(handle2);
-
-    return result;
-}
-
-static void HotDylib_UnlockFileFromProcess(HANDLE heap, SYSTEM_HANDLE_INFORMATION* sys_info, ULONG pid, const WCHAR* file)
+static void HotDylib_UnlockFileFromProcess(ULONG pid, const WCHAR* file)
 { 
+    const OBJECT_INFORMATION_CLASS ObjectNameInformation = (OBJECT_INFORMATION_CLASS)1;
+    const OBJECT_INFORMATION_CLASS ObjectTypeInformation = (OBJECT_INFORMATION_CLASS)2;
+
     // Make sure the process is valid
     HANDLE hCurProcess = GetCurrentProcess();
     HANDLE hProcess = OpenProcess(PROCESS_DUP_HANDLE | PROCESS_QUERY_INFORMATION, FALSE, pid);
@@ -217,36 +171,32 @@ static void HotDylib_UnlockFileFromProcess(HANDLE heap, SYSTEM_HANDLE_INFORMATIO
 
     ULONG i;
     bool found = false;
-    for (i = sys_info->HandleCount - 1; i >= 0; i--)
+    while (!found)
     {
-        SYSTEM_HANDLE* handle_info = &sys_info->Handles[i];
-        HANDLE         handle      = (HANDLE)handle_info->Value;      
-
-        if (handle_info->ProcessId == pid)
+        DWORD handleIter, handleCount;
+        GetProcessHandleCount(hProcess, &handleCount);
+        for (handleIter = 0, handleCount *= 16; handleIter <= handleCount; handleIter += 4)
         {
+            HANDLE handle = (HANDLE)handleIter;
+
             HANDLE hCopy; // Duplicate the handle in the current process
-            if (!DuplicateHandle(hProcess, handle, hCurProcess, &hCopy, MAXIMUM_ALLOWED, FALSE, 0))
+            if (!DuplicateHandle(hProcess, handle, hCurProcess, &hCopy, 0, FALSE, DUPLICATE_SAME_ACCESS))
             {
                 continue;
             }
 
-            ULONG ObjectInformationLength = sizeof(OBJECT_INFORMATION) + 512;
-            OBJECT_INFORMATION* pobj = (OBJECT_INFORMATION*)HeapAlloc(heap, 0, ObjectInformationLength);
+            const char ObjectBuffer[sizeof(OBJECT_INFORMATION) + 512];
+            OBJECT_INFORMATION* pobj = (OBJECT_INFORMATION*)ObjectBuffer;
 
-            if (pobj == NULL)
+            if (NtQueryObject(hCopy, ObjectNameInformation, pobj, sizeof(ObjectBuffer), NULL) != NTSTATUS_SUCCESS)
             {
+                CloseHandle(hCopy);
                 continue;
             }
-
-            ULONG ReturnLength;
-            if (NtQueryObject(hCopy, (OBJECT_INFORMATION_CLASS)1, pobj, ObjectInformationLength, &ReturnLength) != NTSTATUS_SUCCESS)
-            {
-                HeapFree(heap, 0, pobj); 
-                continue;
-            }   
 
             if (!pobj->Name.Buffer)
             {
+                CloseHandle(hCopy);
                 continue;
             }
 
@@ -261,46 +211,21 @@ static void HotDylib_UnlockFileFromProcess(HANDLE heap, SYSTEM_HANDLE_INFORMATIO
 
                 wsprintfW(path1, L"%s\\%s", volumeName, path0);
 
-                if (HotDylib_PathCompare(path1, file))
+                if (wcscmp(path1, file) == 0)
                 {
                     HANDLE hForClose;
                     DuplicateHandle(hProcess, handle, hCurProcess, &hForClose, MAXIMUM_ALLOWED, false, DUPLICATE_CLOSE_SOURCE);
                     CloseHandle(hForClose);
+                    CloseHandle(hCopy);
+                    break;
                 }
-            }
-            else if (found)
-            {
-                CloseHandle(hCopy);
-                HeapFree(heap, 0, pobj);
-                break;
             }
 
             CloseHandle(hCopy);
-            HeapFree(heap, 0, pobj);
         }
     }
 
     CloseHandle(hProcess);
-}
-
-static SYSTEM_HANDLE_INFORMATION* HotDylib_CreateSystemInfo(void)
-{                          
-    size_t sys_info_size = 0;
-    HANDLE heap          = GetProcessHeap();
-    SYSTEM_HANDLE_INFORMATION* sys_info = 0;
-    {
-        ULONG res;
-        NTSTATUS status;
-        do
-        {
-            HeapFree(heap, 0, sys_info);
-            sys_info_size += 4096;
-            sys_info = (SYSTEM_HANDLE_INFORMATION*)HeapAlloc(heap, 0, sys_info_size);
-            status = NtQuerySystemInformation(SystemHandleInformation, sys_info, sys_info_size, &res);
-        } while (status == NTSTATUS_INFO_LENGTH_MISMATCH);
-    }
-
-    return sys_info;
 }
 
 static DWORD WINAPI HotDylib_UnlockPdbFileThread(void* userdata)
@@ -311,8 +236,7 @@ static DWORD WINAPI HotDylib_UnlockPdbFileThread(void* userdata)
         WCHAR           szFile[1];
     };
 
-    HANDLE                   heap = GetProcessHeap();
-    const struct ThreadData* data = (const struct ThreadData*)userdata;
+    struct ThreadData* data = (struct ThreadData*)userdata;
 
     UINT            i;
     UINT            nProcInfoNeeded;
@@ -322,9 +246,6 @@ static DWORD WINAPI HotDylib_UnlockPdbFileThread(void* userdata)
     DWORD           dwSession;     
     RM_PROCESS_INFO rgpi[10];
     WCHAR           szSessionKey[CCH_RM_SESSION_KEY + 1] = { 0 };
-
-    /* Create system info */
-    SYSTEM_HANDLE_INFORMATION* sys_info = NULL;
 
     dwError = RmStartSession(&dwSession, 0, szSessionKey);
     if (dwError == ERROR_SUCCESS)
@@ -338,8 +259,7 @@ static DWORD WINAPI HotDylib_UnlockPdbFileThread(void* userdata)
             {
                 for (i = 0; i < nProcInfo; i++)
                 {                                            
-                    if (!sys_info) sys_info = HotDylib_CreateSystemInfo();
-                    HotDylib_UnlockFileFromProcess(heap, sys_info, rgpi[i].Process.dwProcessId, szFile);
+                    HotDylib_UnlockFileFromProcess(rgpi[i].Process.dwProcessId, szFile);
                 }
             }
         }
@@ -371,10 +291,6 @@ static DWORD WINAPI HotDylib_UnlockPdbFileThread(void* userdata)
     }
 #endif
 
-    /* Clean up */
-    HeapFree(heap, 0, sys_info);
-    HeapFree(heap, 0, (void*)data);
-
     return 0;
 }
 
@@ -383,23 +299,15 @@ static void HotDylib_UnlockPdbFile(HotDylibData* lib, const char* file)
     struct ThreadData
     {
         HotDylibData*   lib;
-        WCHAR           szFile[1];
+        WCHAR           szFile[HOTDYLIB_MAX_PATH + 1];
     };
 
-    HANDLE             heap = GetProcessHeap();
-    struct ThreadData* data = (struct ThreadData*)HeapAlloc(heap, 0, sizeof(struct ThreadData) + HOTDYLIB_MAX_PATH);
+    struct ThreadData data;
 
-    data->lib = lib;
-    MultiByteToWideChar(CP_UTF8, 0, file, -1, data->szFile, HOTDYLIB_MAX_PATH);
+    data.lib = lib;
+    MultiByteToWideChar(CP_UTF8, 0, file, -1, data.szFile, HOTDYLIB_MAX_PATH);
 
-#if !defined(CSFX_SINGLE_THREAD)
-    HANDLE threadHandle = CreateThread(NULL, 0, HotDylib_UnlockPdbFileThread, (void*)data, 0, NULL);
-    (void)threadHandle;
-#else
-    HotDylib_UnlockPdbFileThread((void*)data);
-#endif
-
-    /* Clean up szFile must be done in HotDylib_UnlockPdbFileThread */
+    HotDylib_UnlockPdbFileThread(&data);
 }   
 
 static int HotDylib_GetPdbPath(const char* libpath, char* buf, int len)
@@ -677,9 +585,9 @@ void HotDylib_SEHEnd(HotDylib* lib)
 #error "Unsupported platform"
 #endif
 
-static int HotDylib_RemoveFile(const char* path)
+static bool HotDylib_RemoveFile(const char* path)
 {
-    return remove(path) == 0;
+    return DeleteFileA(path);
 }
 
 static int HotDylib_GetTempPath(const char* path, char* buffer, int length)
@@ -714,7 +622,7 @@ static bool HotDylib_CheckChanged(HotDylib* lib)
     long src = data->libtime;
     long cur = HotDylib_GetLastModifyTime(data->libRealPath);
     bool res = cur > src;
-#if defined(_MSC_VER) && defined(HOTDYLIB_PDB_UNLOCK)
+#if defined(_MSC_VER) && HOTDYLIB_PDB_UNLOCK
     if (res)
     {  
         src = data->pdbtime;
@@ -790,7 +698,7 @@ HotDylib* HotDylibOpen(const char* path, const char* entryName)
     
     strncpy(data->libRealPath, path, HOTDYLIB_MAX_PATH);
     
-    #if defined(_MSC_VER) && defined(HOTDYLIB_PDB_UNLOCK)
+    #if defined(_MSC_VER) && HOTDYLIB_PDB_UNLOCK
     data->delpdb  = FALSE;
     data->pdbtime = 0;
     HotDylib_GetPdbPath(path, data->pdbRealPath, HOTDYLIB_MAX_PATH);
@@ -915,7 +823,7 @@ int HotDylibUpdate(HotDylib* lib)
                 {
                     lib->state = state;
 
-                #if defined(_MSC_VER) && defined(HOTDYLIB_PDB_UNLOCK)
+                #if defined(_MSC_VER) && HOTDYLIB_PDB_UNLOCK
                 #   if defined(HOTDYLIB_PDB_DELETE)
                     HotDylib_RemoveFile(data->pdbTempPath);
                     HotDylib_CopyFile(data->pdbRealPath, data->pdbTempPath);
