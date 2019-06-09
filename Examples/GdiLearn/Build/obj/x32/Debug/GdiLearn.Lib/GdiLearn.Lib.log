@@ -1,20 +1,17 @@
 ﻿  app.c
 d:\hotdylib\examples\gdilearn\app.c(1): warning C4005: 'APP_EXPORT': macro redefinition
   d:\hotdylib\examples\gdilearn\app.c: note: see previous definition of 'APP_EXPORT'
-d:\hotdylib\hotdylib.c(215): warning C4996: 'wcscat': This function or variable may be unsafe. Consider using wcscat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+d:\hotdylib\hotdylib.c(161): warning C4996: 'wcscat': This function or variable may be unsafe. Consider using wcscat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\corecrt_wstring.h(97): note: see declaration of 'wcscat'
-d:\hotdylib\hotdylib.c(260): warning C4996: 'swscanf': This function or variable may be unsafe. Consider using swscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+d:\hotdylib\hotdylib.c(196): warning C4996: 'swscanf': This function or variable may be unsafe. Consider using swscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\corecrt_wstdio.h(2037): note: see declaration of 'swscanf'
-d:\hotdylib\hotdylib.c(414): warning C4996: '_splitpath': This function or variable may be unsafe. Consider using _splitpath_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+d:\hotdylib\hotdylib.c(258): warning C4996: '_splitpath': This function or variable may be unsafe. Consider using _splitpath_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\stdlib.h(1096): note: see declaration of '_splitpath'
-d:\hotdylib\hotdylib.c(407): warning C4101: 'i': unreferenced local variable
-d:\hotdylib\hotdylib.c(411): warning C4101: 'ext': unreferenced local variable
-d:\hotdylib\hotdylib.c(407): warning C4101: 'chr': unreferenced local variable
-d:\hotdylib\hotdylib.c(695): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+d:\hotdylib\hotdylib.c(539): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\stdio.h(205): note: see declaration of 'fopen'
-d:\hotdylib\hotdylib.c(779): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+d:\hotdylib\hotdylib.c(623): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\string.h(119): note: see declaration of 'strcpy'
-d:\hotdylib\hotdylib.c(791): warning C4996: 'strncpy': This function or variable may be unsafe. Consider using strncpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+d:\hotdylib\hotdylib.c(635): warning C4996: 'strncpy': This function or variable may be unsafe. Consider using strncpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\string.h(340): note: see declaration of 'strncpy'
 d:\hotdylib\examples\gdilearn\app.c(165): warning C4133: 'function': incompatible types - from 'char [10]' to 'LPCWSTR'
 d:\hotdylib\examples\gdilearn\app.c(181): warning C4133: 'function': incompatible types - from 'const char *' to 'LPCWSTR'
@@ -27,4 +24,5 @@ d:\hotdylib\examples\gdilearn\app.c(205): warning C4996: 'sprintf': This functio
   c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\stdio.h(1769): note: see declaration of 'sprintf'
 d:\hotdylib\examples\gdilearn\app.c(217): warning C4996: 'sprintf': This function or variable may be unsafe. Consider using sprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\stdio.h(1769): note: see declaration of 'sprintf'
+     Creating library bin\x32\Debug\GdiLearn.Lib.lib and object bin\x32\Debug\GdiLearn.Lib.exp
   GdiLearn.Lib.vcxproj -> D:\hotdylib\Examples\GdiLearn\Build\bin\x32\Debug\GdiLearn.Lib.dll
