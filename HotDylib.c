@@ -25,10 +25,6 @@ HOTDYLIB_API void   HotDylib_SEHEnd(HotDylib* lib);
 #   define HOTDYLIB_FINALLY(lib)  HotDylib_SEHEnd(lib); if (1)
 #endif
 
-#ifdef HOTDYLIB_PDB_DELETE
-#define HOTDYLIB_PDB_UNLOCK 1
-#endif
-
 #ifndef HOTDYLIB_PDB_UNLOCK
 #define HOTDYLIB_PDB_UNLOCK 1
 #endif
@@ -53,7 +49,6 @@ typedef struct
     char  libTempPath[HOTDYLIB_MAX_PATH];
 
 #if defined(_MSC_VER) && HOTDYLIB_PDB_UNLOCK
-    int   delpdb;
     long  pdbtime;
 
     char  pdbRealPath[HOTDYLIB_MAX_PATH];
@@ -228,86 +223,41 @@ static void HotDylib_UnlockFileFromProcess(ULONG pid, const WCHAR* file)
     CloseHandle(hProcess);
 }
 
-static DWORD WINAPI HotDylib_UnlockPdbFileThread(void* userdata)
+static void HotDylib_UnlockPdbFile(HotDylibData* lib, const char* file)
 {
-    struct ThreadData
-    {
-        HotDylibData*   lib;
-        WCHAR           szFile[1];
-    };
-
-    struct ThreadData* data = (struct ThreadData*)userdata;
-
+    WCHAR           szFile[HOTDYLIB_MAX_PATH + 1];
     UINT            i;
     UINT            nProcInfoNeeded;
-    UINT            nProcInfo = 10;    
-    DWORD           dwError;                                  
+    UINT            nProcInfo = 10;
+    DWORD           dwError;
     DWORD           dwReason;
-    DWORD           dwSession;     
+    DWORD           dwSession;
     RM_PROCESS_INFO rgpi[10];
     WCHAR           szSessionKey[CCH_RM_SESSION_KEY + 1] = { 0 };
+
+    MultiByteToWideChar(CP_UTF8, 0, file, -1, szFile, HOTDYLIB_MAX_PATH);
 
     dwError = RmStartSession(&dwSession, 0, szSessionKey);
     if (dwError == ERROR_SUCCESS)
     {
-        LPCWSTR szFile = data->szFile;
-        dwError = RmRegisterResources(dwSession, 1, &szFile, 0, NULL, 0, NULL);
+        WCHAR* szFiles = szFile;
+        
+        dwError = RmRegisterResources(dwSession, 1, &szFiles, 0, NULL, 0, NULL);
         if (dwError == ERROR_SUCCESS)
         {
             dwError = RmGetList(dwSession, &nProcInfoNeeded, &nProcInfo, rgpi, &dwReason);
             if (dwError == ERROR_SUCCESS)
             {
                 for (i = 0; i < nProcInfo; i++)
-                {                                            
+                {
                     HotDylib_UnlockFileFromProcess(rgpi[i].Process.dwProcessId, szFile);
                 }
             }
         }
         RmEndSession(dwSession);
-    }            
-
-    /* Remove the .pdb file if required */
-#if defined(HOTDYLIB_PDB_DELETE)
-    //data->lib->delpdb = TRUE;
-    if (HotDylib_RemoveFile(data->lib->pdbRealPath))
-    {
-        data->lib->delpdb = TRUE;
     }
-    else
-    {
-        data->lib->delpdb = TRUE;
-    }
-
-    HANDLE handle = CreateFileA(data->lib->pdbRealPath,
-                                0,
-                                FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                NULL,
-                                OPEN_EXISTING,
-                                FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE,
-                                NULL);
-    if (handle)
-    {
-        CloseHandle(handle);
-    }
-#endif
 
     return 0;
-}
-
-static void HotDylib_UnlockPdbFile(HotDylibData* lib, const char* file)
-{
-    struct ThreadData
-    {
-        HotDylibData*   lib;
-        WCHAR           szFile[HOTDYLIB_MAX_PATH + 1];
-    };
-
-    struct ThreadData data;
-
-    data.lib = lib;
-    MultiByteToWideChar(CP_UTF8, 0, file, -1, data.szFile, HOTDYLIB_MAX_PATH);
-
-    HotDylib_UnlockPdbFileThread(&data);
 }   
 
 static int HotDylib_GetPdbPath(const char* libpath, char* buf, int len)
@@ -699,7 +649,6 @@ HotDylib* HotDylibOpen(const char* path, const char* entryName)
     strncpy(data->libRealPath, path, HOTDYLIB_MAX_PATH);
     
     #if defined(_MSC_VER) && HOTDYLIB_PDB_UNLOCK
-    data->delpdb  = FALSE;
     data->pdbtime = 0;
     HotDylib_GetPdbPath(path, data->pdbRealPath, HOTDYLIB_MAX_PATH);
     HotDylib_GetTempPath(data->pdbRealPath, data->pdbTempPath, HOTDYLIB_MAX_PATH);
@@ -824,11 +773,6 @@ int HotDylibUpdate(HotDylib* lib)
                     lib->state = state;
 
                 #if defined(_MSC_VER) && HOTDYLIB_PDB_UNLOCK
-                #   if defined(HOTDYLIB_PDB_DELETE)
-                    HotDylib_RemoveFile(data->pdbTempPath);
-                    HotDylib_CopyFile(data->pdbRealPath, data->pdbTempPath);
-                #   endif
-
                     HotDylib_UnlockPdbFile(data, data->pdbRealPath);
                     data->pdbtime = HotDylib_GetLastModifyTime(data->pdbRealPath);
                 #endif
