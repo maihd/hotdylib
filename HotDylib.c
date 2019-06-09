@@ -12,14 +12,6 @@
 #define HOTDYLIB_MAX_PATH   1024
 #define HotDylib_CountOf(x) (sizeof(x) / sizeof((x)[0]))
 
-#ifndef HOTDYLIB_USE_SEH
-#   if defined(_MSC_VER) || (defined(__clang__) && defined(_WIN32))
-#       define HOTDYLIB_USE_SEH 1
-#   else
-#       define HOTDYLIB_USE_SEH 0
-#   endif
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -585,7 +577,7 @@ static bool HotDylib_CallMain(HotDylib* lib, void* library, int state)
     bool res = true;
     if (func)
     {
-#if HOTDYLIB_USE_SEH
+#if defined(_MSC_VER) || (defined(__clang__) && defined(_WIN32))
         __try
         {
             lib->userdata = func(lib->userdata, state, lib->state);
