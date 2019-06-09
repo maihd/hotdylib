@@ -173,7 +173,7 @@ static void HotDylib_UnlockFileFromProcess(ULONG pid, const WCHAR* file)
             continue;
         }
 
-        const char ObjectBuffer[sizeof(OBJECT_INFORMATION) + 512];
+        const char ObjectBuffer[sizeof(OBJECT_INFORMATION) + 512] = {};
         OBJECT_INFORMATION* pobj = (OBJECT_INFORMATION*)ObjectBuffer;
 
         if (NtQueryObject(hCopy, ObjectNameInformation, pobj, sizeof(ObjectBuffer), NULL) != NTSTATUS_SUCCESS)
@@ -230,7 +230,7 @@ static void HotDylib_UnlockPdbFile(HotDylibData* lib, const char* file)
     dwError = RmStartSession(&dwSession, 0, szSessionKey);
     if (dwError == ERROR_SUCCESS)
     {
-        WCHAR* szFiles = szFile;
+        const WCHAR* szFiles = szFile;
         
         dwError = RmRegisterResources(dwSession, 1, &szFiles, 0, NULL, 0, NULL);
         if (dwError == ERROR_SUCCESS)

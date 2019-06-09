@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Host">
+      <UniqueIdentifier>{4372867C-2FA9-870D-D895-6D10C4AB030F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ThirdParty">
+      <UniqueIdentifier>{107145F9-FC28-8746-6530-60A251072237}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ThirdParty\.Sources">
+      <UniqueIdentifier>{D15BDEF8-3DBD-BB06-C62A-02B9328BF2C5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ThirdParty\.Sources\glew-2.1.0">
+      <UniqueIdentifier>{CB46AA16-B76C-747D-A0B2-F9488C779949}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ThirdParty\.Sources\glew-2.1.0\src">
+      <UniqueIdentifier>{6272D25C-4EAE-D5C6-B7C0-EDBDA31B7EE1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\Host\main.cc">
+      <Filter>Host</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\.Sources\glew-2.1.0\src\glew.c">
+      <Filter>ThirdParty\.Sources\glew-2.1.0\src</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

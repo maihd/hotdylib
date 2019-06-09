@@ -10,7 +10,7 @@
 #endif
 
 #if defined(__cplusplus)
-#   extern "C" {
+extern "C" {
 #elif !defined(__bool_true_false_are_defined)
 typedef unsigned char bool;
 enum { true = 1, false = 0 };
