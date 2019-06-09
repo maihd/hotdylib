@@ -1,29 +1,9 @@
+/**************************************************************
+ * HotDylib - Hot reload dynamic library from memory and file *
+ *                                                            *
+ **************************************************************/
+
 #define _CRT_SECURE_NO_WARNINGS
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <setjmp.h>
-#include <signal.h>
-
-#include "HotDylib.h"
-
-/* Undocumented, should not call by hand */
-HOTDYLIB_API bool   HotDylib_SEHBegin(HotDylib* lib);
-
-/* Undocumented, should not call by hand */
-HOTDYLIB_API void   HotDylib_SEHEnd(HotDylib* lib);
-
-#if defined(_MSC_VER) || defined(__MINGW32__) || defined(_WIN32)
-#   define HOTDYLIB_TRY(lib)      if (HotDylib_SEHBegin(lib))
-#   define HOTDYLIB_EXCEPT(lib)   else
-#   define HOTDYLIB_FINALLY(lib)  HotDylib_SEHEnd(lib); if (1)
-#elif (__unix__)
-#   define HOTDYLIB_TRY(lib)      if (HotDylib_SEHBegin(lib) && sigsetjmp((lib)->jumpPoint) == 0)
-#   define HOTDYLIB_EXCEPT(lib)   else
-#   define HOTDYLIB_FINALLY(lib)  HotDylib_SEHEnd(lib); if (1)
-#endif
 
 #ifndef HOTDYLIB_PDB_UNLOCK
 #define HOTDYLIB_PDB_UNLOCK 1
@@ -39,6 +19,31 @@ HOTDYLIB_API void   HotDylib_SEHEnd(HotDylib* lib);
 #       define HOTDYLIB_USE_SEH 0
 #   endif
 #endif
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+#include <setjmp.h>
+#include <signal.h>
+
+#include "HotDylib.h"
+
+#if defined(__MINGW32__) || (defined(_WIN32) && defined(__clang__))
+#   define HOTDYLIB_TRY(lib)      if (HotDylib_SEHBegin(lib))
+#   define HOTDYLIB_EXCEPT(lib)   else
+#   define HOTDYLIB_FINALLY(lib)  HotDylib_SEHEnd(lib); if (1)
+#elif (__unix__) || defined(__linux__) || defined(__APPLE__)
+#   define HOTDYLIB_TRY(lib)      if (HotDylib_SEHBegin(lib) && sigsetjmp((lib)->jumpPoint) == 0)
+#   define HOTDYLIB_EXCEPT(lib)   else
+#   define HOTDYLIB_FINALLY(lib)  HotDylib_SEHEnd(lib); if (1)
+#endif
+
+/* Undocumented, should not call by hand */
+HOTDYLIB_API bool   HotDylib_SEHBegin(HotDylib* lib);
+
+/* Undocumented, should not call by hand */
+HOTDYLIB_API void   HotDylib_SEHEnd(HotDylib* lib);
 
 typedef struct
 {
@@ -164,60 +169,53 @@ static void HotDylib_UnlockFileFromProcess(ULONG pid, const WCHAR* file)
     wcscat(prefix, L"\\");
     size_t prefixLength = wcslen(prefix);
 
-    ULONG i;
-    bool found = false;
-    while (!found)
+    DWORD handleIter, handleCount;
+    GetProcessHandleCount(hProcess, &handleCount);
+    for (handleIter = 0, handleCount *= 16; handleIter <= handleCount; handleIter += 4)
     {
-        DWORD handleIter, handleCount;
-        GetProcessHandleCount(hProcess, &handleCount);
-        for (handleIter = 0, handleCount *= 16; handleIter <= handleCount; handleIter += 4)
+        HANDLE handle = (HANDLE)handleIter;
+
+        HANDLE hCopy; // Duplicate the handle in the current process
+        if (!DuplicateHandle(hProcess, handle, hCurProcess, &hCopy, 0, FALSE, DUPLICATE_SAME_ACCESS))
         {
-            HANDLE handle = (HANDLE)handleIter;
-
-            HANDLE hCopy; // Duplicate the handle in the current process
-            if (!DuplicateHandle(hProcess, handle, hCurProcess, &hCopy, 0, FALSE, DUPLICATE_SAME_ACCESS))
-            {
-                continue;
-            }
-
-            const char ObjectBuffer[sizeof(OBJECT_INFORMATION) + 512];
-            OBJECT_INFORMATION* pobj = (OBJECT_INFORMATION*)ObjectBuffer;
-
-            if (NtQueryObject(hCopy, ObjectNameInformation, pobj, sizeof(ObjectBuffer), NULL) != NTSTATUS_SUCCESS)
-            {
-                CloseHandle(hCopy);
-                continue;
-            }
-
-            if (!pobj->Name.Buffer)
-            {
-                CloseHandle(hCopy);
-                continue;
-            }
-
-            if (wcsncmp(pobj->Name.Buffer, prefix, prefixLength) == 0)
-            {
-                found = true;
-
-                WCHAR path0[HOTDYLIB_MAX_PATH];
-                WCHAR path1[HOTDYLIB_MAX_PATH];
-
-                swscanf(pobj->Name.Buffer + prefixLength, L"%s", path0);
-
-                wsprintfW(path1, L"%s\\%s", volumeName, path0);
-
-                if (wcscmp(path1, file) == 0)
-                {
-                    HANDLE hForClose;
-                    DuplicateHandle(hProcess, handle, hCurProcess, &hForClose, MAXIMUM_ALLOWED, false, DUPLICATE_CLOSE_SOURCE);
-                    CloseHandle(hForClose);
-                    CloseHandle(hCopy);
-                    break;
-                }
-            }
-
-            CloseHandle(hCopy);
+            continue;
         }
+
+        const char ObjectBuffer[sizeof(OBJECT_INFORMATION) + 512];
+        OBJECT_INFORMATION* pobj = (OBJECT_INFORMATION*)ObjectBuffer;
+
+        if (NtQueryObject(hCopy, ObjectNameInformation, pobj, sizeof(ObjectBuffer), NULL) != NTSTATUS_SUCCESS)
+        {
+            CloseHandle(hCopy);
+            continue;
+        }
+
+        if (!pobj->Name.Buffer)
+        {
+            CloseHandle(hCopy);
+            continue;
+        }
+
+        if (wcsncmp(pobj->Name.Buffer, prefix, prefixLength) == 0)
+        {
+            WCHAR path0[HOTDYLIB_MAX_PATH];
+            WCHAR path1[HOTDYLIB_MAX_PATH];
+
+            swscanf(pobj->Name.Buffer + prefixLength, L"%s", path0);
+
+            wsprintfW(path1, L"%s\\%s", volumeName, path0);
+
+            if (wcscmp(path1, file) == 0)
+            {
+                HANDLE hForClose;
+                DuplicateHandle(hProcess, handle, hCurProcess, &hForClose, MAXIMUM_ALLOWED, false, DUPLICATE_CLOSE_SOURCE);
+                CloseHandle(hForClose);
+                CloseHandle(hCopy);
+                break;
+            }
+        }
+
+        CloseHandle(hCopy);
     }
 
     CloseHandle(hProcess);
@@ -256,17 +254,13 @@ static void HotDylib_UnlockPdbFile(HotDylibData* lib, const char* file)
         }
         RmEndSession(dwSession);
     }
-
-    return 0;
 }   
 
 static int HotDylib_GetPdbPath(const char* libpath, char* buf, int len)
 {
-    int i, chr;
     char drv[8];
     char dir[HOTDYLIB_MAX_PATH];
     char name[HOTDYLIB_MAX_PATH];
-    char ext[32];
 
     GetFullPathNameA(libpath, len, buf, NULL);
     _splitpath(buf, drv, dir, name, NULL);
@@ -671,11 +665,6 @@ void HotDylibFree(HotDylib* lib)
 
             /* Remove temp library */
             HotDylib_RemoveFile(data->libTempPath); /* Ignore error code */
-
-#if defined(_MSC_VER) && defined(HOTDYLIB_PDB_DELETE)
-            HotDylib_CopyFile(data->pdbTempPath, data->pdbRealPath);
-            HotDylib_RemoveFile(data->pdbTempPath);
-#endif
         }
 
         /* Clean up */
@@ -686,39 +675,6 @@ void HotDylibFree(HotDylib* lib)
 int HotDylibUpdate(HotDylib* lib)
 {
     HotDylibData* data = (HotDylibData*)(lib + 1);
-
-#if 0
-    if (data->delpdb)
-    {
-        HANDLE fileHandle = CreateFileA(
-            data->pdbRealPath,
-            GENERIC_READ,
-            0,
-            NULL,
-            OPEN_EXISTING,
-            FILE_DELETE_ON_CLOSE,
-            NULL);
-        if (fileHandle != INVALID_HANDLE_VALUE)
-        {
-            CloseHandle(fileHandle);
-        }
-
-        if (HotDylib_RemoveFile(data->pdbRealPath))
-        {
-            int a = 0;
-            int b = 1;
-
-            a = a + b;
-        }
-        else
-        {
-            int a = 0;
-            int b = 1;
-
-            a = a + b;
-        }
-    }
-#endif
     
     if (HotDylib_CheckChanged(lib))
     {
