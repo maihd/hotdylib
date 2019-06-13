@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Guest">
+      <UniqueIdentifier>{2DB1450D-99C5-6DBE-6247-111ECE1A6AEF}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\HotDylibApi.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\Guest\Main.cc">
+      <Filter>Guest</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

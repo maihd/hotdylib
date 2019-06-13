@@ -17,7 +17,7 @@ enum { true = 1, false = 0 };
 #endif
 
 /**
- * CSFX lib state
+ * HotDylibState
  */
 enum
 {
@@ -30,7 +30,7 @@ enum
 };
 
 /**
- * CSFX lib error code
+ * HotDylib error code
  */
 enum
 {
@@ -46,7 +46,7 @@ enum
 };
 
 /** 
- * Script data structure
+ * HotDylib
  */
 typedef struct HotDylib
 {

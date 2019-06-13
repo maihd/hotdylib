@@ -133,6 +133,8 @@ do
     }
 
     files {
+        path.join(ROOT_DIR, "../../HotDylibApi.h"),
+        
         path.join(ROOT_DIR, "Guest/*.h"),
         path.join(ROOT_DIR, "Guest/*.cc"),
         path.join(ROOT_DIR, "Guest/**/*.h"),

@@ -154,6 +154,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\HotDylibApi.h" />
+  </ItemGroup>
+  <ItemGroup>
     <ClCompile Include="..\Guest\Main.cc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
