@@ -8,7 +8,10 @@ FAQs
   - I want to create to understand mechanic of hot reload in C/C++. This project follow 2 principles of MaiCstyle: self-reliance and immediate feedback.
 
 - Is it production ready? 
-  - Only for development: yes. For user production: No. Because many platforms not accept application load dynamic library in runtime. And there no showcase in final production yet. 
+  - Only for development: yes. For user production: No. Because many platforms not accept application load dynamic library in runtime. And there no showcase in final production yet.
+
+- So how I can use code that write in hot dynamic library (guest library) in final product? 
+  - Just move your code to host project (application that load dynamic library at runtime). Or seperate configuration that have development load dynamic library at runtime, and release that linking the dynamic library. 
 
 License
 -------
