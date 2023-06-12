@@ -11,7 +11,10 @@ FAQs
   - Only for development: yes. For user production: No. Because many platforms not accept application load dynamic library in runtime. And there no showcase in final production yet.
 
 - So how I can use code that write in hot dynamic library (guest library) in final product? 
-  - Just move your code to host project (application that load dynamic library at runtime). Or seperate configuration that have development load dynamic library at runtime, and release that linking the dynamic library. 
+  - Just move your code to host project (application that load dynamic library at runtime). Or seperate configuration that have development load dynamic library at runtime, and release that linking the dynamic library.
+
+- I found this project use premake5, how do use custom build system?
+  - Just copy the source file (.h and .c) to your project. 
 
 License
 -------
