@@ -1,14 +1,4 @@
-﻿  main.cc
-d:\hotdylib\hotdylib.c(161): warning C4996: 'wcscat': This function or variable may be unsafe. Consider using wcscat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-  c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\corecrt_wstring.h(97): note: see declaration of 'wcscat'
-d:\hotdylib\hotdylib.c(196): warning C4996: 'swscanf': This function or variable may be unsafe. Consider using swscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-  c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\corecrt_wstdio.h(2037): note: see declaration of 'swscanf'
-d:\hotdylib\hotdylib.c(258): warning C4996: '_splitpath': This function or variable may be unsafe. Consider using _splitpath_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-  c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\stdlib.h(1096): note: see declaration of '_splitpath'
-d:\hotdylib\hotdylib.c(539): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-  c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\stdio.h(205): note: see declaration of 'fopen'
-d:\hotdylib\hotdylib.c(623): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-  c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\string.h(119): note: see declaration of 'strcpy'
-d:\hotdylib\hotdylib.c(635): warning C4996: 'strncpy': This function or variable may be unsafe. Consider using strncpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-  c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\string.h(340): note: see declaration of 'strncpy'
-  HotImGui.Host.vcxproj -> D:\hotdylib\Examples\HotImGui\Build\bin\x32\Debug\HotImGui.Host.exe
+﻿  HotImGui.Host.vcxproj -> I:\projects\hotdylib\Examples\HotImGui\Build\bin\x32\Debug\HotImGui.Host.exe
+  File not found - SDL2.dll
+C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VC\VCTargets\Microsoft.CppCommon.targets(138,5): error MSB3073: The command "IF EXIST D:\hotdylib\Examples\HotImGui\ThirdParty\Libs\Win32\SDL2.dll\ (xcopy /Q /E /Y /I D:\hotdylib\Examples\HotImGui\ThirdParty\Libs\Win32\SDL2.dll I:\projects\hotdylib\Examples\HotImGui\Build\bin\x32\Debug\ > nul) ELSE (xcopy /Q /Y /I D:\hotdylib\Examples\HotImGui\ThirdParty\Libs\Win32\SDL2.dll I:\projects\hotdylib\Examples\HotImGui\Build\bin\x32\Debug\ > nul)
+C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VC\VCTargets\Microsoft.CppCommon.targets(138,5): error MSB3073: :VCEnd" exited with code 4.

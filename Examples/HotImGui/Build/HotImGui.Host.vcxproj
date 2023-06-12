@@ -128,7 +128,7 @@
       <AdditionalLibraryDirectories>..\ThirdParty\Libs\Win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>IF EXIST D:\hotdylib\Examples\HotImGui\ThirdParty\Libs\Win64\SDL2.dll\ (xcopy /Q /E /Y /I D:\hotdylib\Examples\HotImGui\ThirdParty\Libs\Win64\SDL2.dll $(TargetDir) &gt; nul) ELSE (xcopy /Q /Y /I D:\hotdylib\Examples\HotImGui\ThirdParty\Libs\Win64\SDL2.dll $(TargetDir) &gt; nul)</Command>
+      <Command>IF EXIST D:\hotdylib\Examples\HotImGui\ThirdParty\Libs\Win64\SDL2.dll (xcopy /Q /E /Y /I D:\hotdylib\Examples\HotImGui\ThirdParty\Libs\Win64\SDL2.dll $(TargetDir) &gt; nul) ELSE (xcopy /Q /Y /I D:\hotdylib\Examples\HotImGui\ThirdParty\Libs\Win64\SDL2.dll $(TargetDir) &gt; nul)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

@@ -4,7 +4,7 @@ local BUILD_DIR = path.join(ROOT_DIR, "Build")
 workspace "HotDylib"
 do
     language "C"
-    location (BUILD_DIR)
+    location (path.join(BUILD_DIR, _ACTION))
 
     platforms { "x32", "x64" }
     configurations { "Debug", "Release" }
@@ -48,7 +48,7 @@ end
 workspace "HotDylib.Lib"
 do
     language "C"
-    location (BUILD_DIR)
+    location (path.join(BUILD_DIR, _ACTION))
 
     platforms { "x32", "x64" }
     configurations { "Debug", "Release" }

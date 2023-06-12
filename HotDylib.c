@@ -173,7 +173,7 @@ static void HotDylib_UnlockFileFromProcess(ULONG pid, const WCHAR* file)
             continue;
         }
 
-        const char ObjectBuffer[sizeof(OBJECT_INFORMATION) + 512] = {};
+        const char ObjectBuffer[sizeof(OBJECT_INFORMATION) + 512] = { 0 };
         OBJECT_INFORMATION* pobj = (OBJECT_INFORMATION*)ObjectBuffer;
 
         if (NtQueryObject(hCopy, ObjectNameInformation, pobj, sizeof(ObjectBuffer), NULL) != NTSTATUS_SUCCESS)

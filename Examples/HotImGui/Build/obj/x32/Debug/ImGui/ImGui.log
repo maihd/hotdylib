@@ -1,10 +1,4 @@
-﻿  DllMain.cc
-  imgui_impl_opengl3.cc
-  imgui_impl_sdl.cc
-  imgui.cpp
-  imgui_demo.cpp
-  imgui_draw.cpp
-  imgui_widgets.cpp
-  Generating Code...
-  glew.c
-  ImGui.vcxproj -> D:\hotdylib\Examples\HotImGui\Build\bin\x32\Debug\ImGui.dll
+﻿  ImGui.vcxproj -> I:\projects\hotdylib\Examples\HotImGui\Build\bin\x32\Debug\ImGui.dll
+  File not found - SDL2.dll
+C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VC\VCTargets\Microsoft.CppCommon.targets(138,5): error MSB3073: The command "IF EXIST D:\hotdylib\Examples\HotImGui\ThirdParty\Libs\Win32\SDL2.dll\ (xcopy /Q /E /Y /I D:\hotdylib\Examples\HotImGui\ThirdParty\Libs\Win32\SDL2.dll I:\projects\hotdylib\Examples\HotImGui\Build\bin\x32\Debug\ > nul) ELSE (xcopy /Q /Y /I D:\hotdylib\Examples\HotImGui\ThirdParty\Libs\Win32\SDL2.dll I:\projects\hotdylib\Examples\HotImGui\Build\bin\x32\Debug\ > nul)
+C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VC\VCTargets\Microsoft.CppCommon.targets(138,5): error MSB3073: :VCEnd" exited with code 4.
