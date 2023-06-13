@@ -3,3 +3,6 @@
 .DS_Store
 
 Build
+
+zig-out
+zig-cache

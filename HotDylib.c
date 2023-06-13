@@ -110,7 +110,7 @@ static long HotDylib_GetLastModifyTime(const char* path)
     WIN32_FILE_ATTRIBUTE_DATA fad;
     if (!GetFileAttributesExA(path, GetFileExInfoStandard, &fad))
     {
-        HANDLE file = CreateFileA(path, GENERIC_READ, NULL, 0, 0, FILE_ATTRIBUTE_NORMAL, INVALID_HANDLE_VALUE);
+        HANDLE file = CreateFileA(path, GENERIC_READ, 0, 0, 0, FILE_ATTRIBUTE_NORMAL, INVALID_HANDLE_VALUE);
         if (file != INVALID_HANDLE_VALUE)
         {
             if (!GetFileTime(file, NULL, NULL, &modTime))
@@ -546,6 +546,113 @@ bool HotDylibUnlocked(HotDylib* lib)
 }
 #endif
 
+# else
+typedef struct SehFilter
+{
+    int                             ref;
+    HotDylib*                       lib;
+    LPTOP_LEVEL_EXCEPTION_FILTER    oldHandler;
+} SehFilter;
+
+static SehFilter    s_filterStack[128];
+static int          s_filterStackPointer = -1;
+
+/* Undocumented, should not call by hand */
+static HotDylibError HotDylib_SEHFilter(HotDylib* lib, int exception)
+{
+    HotDylibError error = HOTDYLIB_ERROR_NONE;
+
+    switch (exception)
+    {
+    case EXCEPTION_FLT_OVERFLOW:
+    case EXCEPTION_FLT_UNDERFLOW:
+    case EXCEPTION_FLT_STACK_CHECK:
+    case EXCEPTION_FLT_DIVIDE_BY_ZERO:
+    case EXCEPTION_FLT_INEXACT_RESULT:
+    case EXCEPTION_FLT_DENORMAL_OPERAND:
+    case EXCEPTION_FLT_INVALID_OPERATION:
+        error = HOTDYLIB_ERROR_FLOAT;
+        break;
+
+    case EXCEPTION_ACCESS_VIOLATION:
+        error = HOTDYLIB_ERROR_SEGFAULT;
+        break;
+
+    case EXCEPTION_ILLEGAL_INSTRUCTION:
+        error = HOTDYLIB_ERROR_ILLCODE;
+        break;
+
+    case EXCEPTION_DATATYPE_MISALIGNMENT:
+        error = HOTDYLIB_ERROR_MISALIGN;
+        break;
+
+    case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+        error = HOTDYLIB_ERROR_OUTBOUNDS;
+        break;
+
+    case EXCEPTION_STACK_OVERFLOW:
+        error = HOTDYLIB_ERROR_STACKOVERFLOW;
+        break;
+
+    default:
+        break;
+    }
+
+    if (lib) lib->error = error;
+    return error;
+}
+
+static LONG WINAPI HotDylib_SignalHandler(EXCEPTION_POINTERS* info)
+{
+    assert(s_filterStackPointer > -1);
+
+    DWORD           exception = info->ExceptionRecord->ExceptionCode;
+    HotDylibError   error = HotDylib_SEHFilter(NULL, exception);
+
+    return error != HOTDYLIB_ERROR_NONE;
+}
+
+bool HotDylib_SEHBegin(HotDylib* lib)
+{
+    assert(lib);
+
+    if (s_filterStack[s_filterStackPointer].lib == lib)
+    {
+        s_filterStack[s_filterStackPointer].ref++;
+    }
+    else
+    {
+        assert(s_filterStackPointer < (int)HotDylib_CountOf(s_filterStack));
+
+        SehFilter* filter = &s_filterStack[++s_filterStackPointer];
+        filter->ref = 0;
+        filter->lib = lib;
+        filter->oldHandler = SetUnhandledExceptionFilter(HotDylib_SignalHandler);
+    }
+
+    return true;
+}
+
+void HotDylib_SEHEnd(HotDylib* lib)
+{
+    assert(lib);
+    assert(s_filterStackPointer > -1 && s_filterStack[s_filterStackPointer].lib == lib);
+
+    SehFilter* filter = &s_filterStack[s_filterStackPointer];
+    if (--filter->ref <= 0)
+    {
+        s_filterStackPointer--;
+        SetUnhandledExceptionFilter(filter->oldHandler);
+    }
+}
+
+// Check if guest library ready to rebuild
+bool HotDylibUnlocked(HotDylib* lib)
+{
+    // HotDylibData* data = (HotDylibData*)(lib - 1);
+    // return HotDylib_IsFileLocked(data->pdbRealPath);
+    return false;
+}
 # endif /* _MSC_VER */
 
 #elif defined(__unix__)
@@ -723,7 +830,7 @@ static bool HotDylib_CallMain(HotDylib* lib, void* library, HotDylibState newSta
     bool res = true;
     if (func)
     {
-#if defined(_MSC_VER) || (defined(__clang__) && defined(_WIN32))
+#if defined(_MSC_VER)
         __try
         {
             lib->userdata = func(lib->userdata, newState, lib->state);
@@ -735,7 +842,7 @@ static bool HotDylib_CallMain(HotDylib* lib, void* library, HotDylibState newSta
 #else
         HOTDYLIB_TRY(lib)
         {
-            lib->userdata = func(lib->userdata, lib->state, state);
+            lib->userdata = func(lib->userdata, lib->state, newState);
         }
         HOTDYLIB_EXCEPT(lib)
         {
