@@ -5,34 +5,35 @@
 
 #pragma once
 
+#include <stdint.h>
+#include <stdbool.h>
+
 #ifndef HOTDYLIB_API
 #define HOTDYLIB_API
 #endif
 
 #if defined(__cplusplus)
 extern "C" {
-#elif !defined(__bool_true_false_are_defined)
-typedef unsigned char bool;
-enum { true = 1, false = 0 };
 #endif
 
 /**
  * HotDylibState
  */
-enum
+typedef enum HotDylibState
 {
     HOTDYLIB_NONE,
     HOTDYLIB_INIT,
     HOTDYLIB_QUIT,
     HOTDYLIB_UNLOAD,
     HOTDYLIB_RELOAD,
+    HOTDYLIB_LOCKED,
     HOTDYLIB_FAILED,
-};
+} HotDylibState;
 
 /**
  * HotDylib error code
  */
-enum
+typedef enum HotDylibError
 {
     HOTDYLIB_ERROR_NONE,
     HOTDYLIB_ERROR_ABORT,
@@ -43,17 +44,17 @@ enum
     HOTDYLIB_ERROR_SEGFAULT,
     HOTDYLIB_ERROR_OUTBOUNDS,
     HOTDYLIB_ERROR_STACKOVERFLOW,
-};
+} HotDylibError;
 
 /** 
  * HotDylib
  */
 typedef struct HotDylib
 {
-    int     state;
-    int     errcode;
-    void*   userdata;
-    char    entryName[256];
+    HotDylibState   state;
+    HotDylibError   error;
+    void*           userdata;
+    char            entryName[256];
 } HotDylib;
 
 /**
@@ -69,7 +70,10 @@ HOTDYLIB_API void           HotDylibFree(HotDylib* lib);
 /**
  * Update lib, check for changed library and reload
  */
-HOTDYLIB_API int            HotDylibUpdate(HotDylib* lib);
+HOTDYLIB_API HotDylibState  HotDylibUpdate(HotDylib* lib);
+
+// Check if guest library ready to rebuild
+//HOTDYLIB_API bool           HotDylibUnlocked(HotDylib* lib);
 
 /**
  * Get an symbol address from library with symbol's name
