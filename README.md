@@ -18,4 +18,4 @@ FAQs
 
 License
 -------
-Unlicense @ MaiHD 2019 - 2023
+Unlicense @ MaiHD 2019 - 2026
