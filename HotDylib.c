@@ -1,16 +1,14 @@
-/**************************************************************
- * HotDylib - Hot reload dynamic library from memory and file *
- *                                                            *
- **************************************************************/
+/************************************************************************************
+ * HotDylib - Hot reload dynamic library from memory and file                       *
+ *                                                                                  *
+ * Unlicense, MaiHD @ 2019 - 2026                                                   *
+ *                                                                                  *
+ * HotDylib implementation                                                          *
+ ************************************************************************************/
 
+#ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
-
-#ifndef HOTDYLIB_PDB_UNLOCK
-#define HOTDYLIB_PDB_UNLOCK 1
 #endif
-
-#define HOTDYLIB_MAX_PATH   256
-#define HotDylib_CountOf(x) (sizeof(x) / sizeof((x)[0]))
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,7 +17,20 @@
 #include <setjmp.h>
 #include <signal.h>
 
+// Use HotDylib .h/.c files seperately  
+#ifndef HOTDYLIB_IMPLMENTATION
 #include "HotDylib.h"
+#endif
+
+
+#ifndef HOTDYLIB_PDB_UNLOCK
+#define HOTDYLIB_PDB_UNLOCK 0
+#endif
+
+
+#define HOTDYLIB_MAX_PATH   256
+#define HotDylib_CountOf(x) (sizeof(x) / sizeof((x)[0]))
+
 
 #if defined(__MINGW32__) || (defined(_WIN32) && defined(__clang__))
 #   define HOTDYLIB_TRY(lib)      if (HotDylib_SEHBegin(lib))
@@ -31,25 +42,27 @@
 #   define HOTDYLIB_FINALLY(lib)  HotDylib_SEHEnd(lib); if (1)
 #endif
 
- /* Undocumented, should not call by hand */
+
+/* Undocumented, should not call by hand */
 HOTDYLIB_API bool   HotDylib_SEHBegin(HotDylib* lib);
 
 /* Undocumented, should not call by hand */
 HOTDYLIB_API void   HotDylib_SEHEnd(HotDylib* lib);
 
+
 typedef struct
 {
-    void* library;
+    void*   library;
 
-    long  libTime;
-    char  libRealPath[HOTDYLIB_MAX_PATH];
-    char  libTempPath[HOTDYLIB_MAX_PATH];
+    long    libTime;
+    char    libRealPath[HOTDYLIB_MAX_PATH];
+    char    libTempPath[HOTDYLIB_MAX_PATH];
 
 #if defined(_MSC_VER) && HOTDYLIB_PDB_UNLOCK
-    long  pdbTime;
+    long    pdbTime;
 
-    char  pdbRealPath[HOTDYLIB_MAX_PATH];
-    char  pdbTempPath[HOTDYLIB_MAX_PATH];
+    char    pdbRealPath[HOTDYLIB_MAX_PATH];
+    char    pdbTempPath[HOTDYLIB_MAX_PATH];
 #endif
 } HotDylibData;
 
@@ -154,10 +167,12 @@ static bool HotDylib_RemoveFile(const char* path);
 #    define NTSTATUS_SUCCESS              ((NTSTATUS)0x00000000L)
 #    define NTSTATUS_INFO_LENGTH_MISMATCH ((NTSTATUS)0xc0000004L)
 
+
 typedef struct
 {
     UNICODE_STRING Name;
 } OBJECT_INFORMATION;
+
 
 static void HotDylib_UnlockFileFromProcess(ULONG pid, const WCHAR* file)
 {
@@ -233,6 +248,7 @@ static void HotDylib_UnlockFileFromProcess(ULONG pid, const WCHAR* file)
     CloseHandle(hProcess);
 }
 
+
 static void HotDylib_UnlockPdbFile(HotDylibData* lib, const char* file)
 {
     WCHAR           szFile[HOTDYLIB_MAX_PATH + 1];
@@ -267,6 +283,7 @@ static void HotDylib_UnlockPdbFile(HotDylibData* lib, const char* file)
         RmEndSession(dwSession);
     }
 }
+
 
 static bool HotDylib_IsFileLockedFromProcess(ULONG pid, const WCHAR* file)
 {
@@ -340,6 +357,7 @@ static bool HotDylib_IsFileLockedFromProcess(ULONG pid, const WCHAR* file)
     return false;
 }
 
+
 static bool HotDylib_IsFileLocked(const char* file)
 {
     WCHAR           szFile[HOTDYLIB_MAX_PATH + 1];
@@ -379,6 +397,7 @@ static bool HotDylib_IsFileLocked(const char* file)
 
     return false;
 }
+
 
 static int HotDylib_GetPdbPath(const char* libpath, char* buf, int len)
 {
@@ -438,16 +457,18 @@ static int HotDylib_SEHFilter(HotDylib* lib, int exception)
     int rc = error != HOTDYLIB_ERROR_NONE;
     return rc;
 }
-#else
-typedef struct SehFilter
+#else // #if HOTDYLIB_USE_SEH
+typedef struct HotDylib_SehFilter
 {
     int                             ref;
     HotDylib*                       lib;
     LPTOP_LEVEL_EXCEPTION_FILTER    oldHandler;
-} SehFilter;
+} HotDylib_SehFilter;
 
-static SehFilter    s_filterStack[128];
-static int          s_filterStackPointer = -1;
+
+static HotDylib_SehFilter   s_filterStack[128];
+static int                  s_filterStackPointer = -1;
+
 
 /* Undocumented, should not call by hand */
 static HotDylibError HotDylib_SEHFilter(HotDylib* lib, int exception)
@@ -494,6 +515,7 @@ static HotDylibError HotDylib_SEHFilter(HotDylib* lib, int exception)
     return error;
 }
 
+
 static LONG WINAPI HotDylib_SignalHandler(EXCEPTION_POINTERS* info)
 {
     assert(s_filterStackPointer > -1);
@@ -503,6 +525,7 @@ static LONG WINAPI HotDylib_SignalHandler(EXCEPTION_POINTERS* info)
 
     return error != HOTDYLIB_ERROR_NONE;
 }
+
 
 bool HotDylib_SEHBegin(HotDylib* lib)
 {
@@ -516,7 +539,7 @@ bool HotDylib_SEHBegin(HotDylib* lib)
     {
         assert(s_filterStackPointer < (int)HotDylib_CountOf(s_filterStack));
 
-        SehFilter* filter = &s_filterStack[++s_filterStackPointer];
+        HotDylib_SehFilter* filter = &s_filterStack[++s_filterStackPointer];
         filter->ref = 0;
         filter->lib = lib;
         filter->oldHandler = SetUnhandledExceptionFilter(HotDylib_SignalHandler);
@@ -525,12 +548,13 @@ bool HotDylib_SEHBegin(HotDylib* lib)
     return true;
 }
 
+
 void HotDylib_SEHEnd(HotDylib* lib)
 {
     assert(lib);
     assert(s_filterStackPointer > -1 && s_filterStack[s_filterStackPointer].lib == lib);
 
-    SehFilter* filter = &s_filterStack[s_filterStackPointer];
+    HotDylib_SehFilter* filter = &s_filterStack[s_filterStackPointer];
     if (--filter->ref <= 0)
     {
         s_filterStackPointer--;
@@ -538,13 +562,17 @@ void HotDylib_SEHEnd(HotDylib* lib)
     }
 }
 
-// Check if guest library ready to rebuild
+
 bool HotDylibUnlocked(HotDylib* lib)
 {
+#if HOTDYLIB_PDB_UNLOCK
     HotDylibData* data = (HotDylibData*)(lib - 1);
     return HotDylib_IsFileLocked(data->pdbRealPath);
-}
+#else
+    return true;
 #endif
+}
+#endif // #if HOTDYLIB_USE_SEH
 
 # else
 typedef struct SehFilter
@@ -774,10 +802,12 @@ bool HotDylibUnlocked(HotDylib* lib)
 #error "Unsupported platform"
 #endif
 
+
 static bool HotDylib_RemoveFile(const char* path)
 {
     return DeleteFileA(path);
 }
+
 
 static int HotDylib_GetTempPath(const char* path, char* buffer, int length)
 {
@@ -804,6 +834,7 @@ static int HotDylib_GetTempPath(const char* path, char* buffer, int length)
     return res;
 }
 
+
 static bool HotDylib_CheckChanged(HotDylib* lib)
 {
     HotDylibData* data = (HotDylibData*)(lib + 1);
@@ -821,6 +852,7 @@ static bool HotDylib_CheckChanged(HotDylib* lib)
 #endif
     return res;
 }
+
 
 static bool HotDylib_CallMain(HotDylib* lib, void* library, HotDylibState newState)
 {
@@ -857,6 +889,7 @@ static bool HotDylib_CallMain(HotDylib* lib, void* library, HotDylibState newSta
 
     return res;
 }
+
 
 /* @impl: HotDylibOpen */
 HotDylib* HotDylibOpen(const char* path, const char* entryName)
@@ -896,6 +929,7 @@ HotDylib* HotDylibOpen(const char* path, const char* entryName)
     return lib;
 }
 
+
 void HotDylibFree(HotDylib* lib)
 {
     if (lib)
@@ -916,6 +950,7 @@ void HotDylibFree(HotDylib* lib)
         free(lib);
     }
 }
+
 
 HotDylibState HotDylibUpdate(HotDylib* lib)
 {
@@ -1000,11 +1035,13 @@ HotDylibState HotDylibUpdate(HotDylib* lib)
     }
 }
 
+
 void* HotDylibGetSymbol(const HotDylib* lib, const char* symbolName)
 {
     HotDylibData* data = (HotDylibData*)(lib + 1);
     return Dylib_GetSymbol(data->library, symbolName);
 }
+
 
 const char* HotDylibGetError(const HotDylib* lib)
 {
@@ -1012,3 +1049,4 @@ const char* HotDylibGetError(const HotDylib* lib)
     return Dylib_GetError();
 }
 
+//! EOF HotDylib.c

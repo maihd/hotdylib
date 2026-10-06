@@ -1,7 +1,17 @@
-/**************************************************************
- * HotDylib - Hot reload dynamic library from memory and file *
- *                                                            *
- **************************************************************/
+/************************************************************************************
+ * HotDylib - Hot reload dynamic library from memory and file                       *
+ *                                                                                  *
+ * Unlicense, MaiHD @ 2019 - 2026                                                   *
+ *                                                                                  *
+ * API                                                                              *
+ * ---                                                                              *
+ *                                                                                  *
+ * HotDylib*      HotDylibOpen(const char* path, const char* entryName);            *
+ * void           HotDylibFree(HotDylib* lib);                                      *
+ * HotDylibState  HotDylibUpdate(HotDylib* lib);                                    *
+ * void*          HotDylibGetSymbol(const HotDylib* lib, const char* symbolName);   *
+ * const char*    HotDylibGetError(const HotDylib* lib);                            *
+ ************************************************************************************/
 
 #pragma once
 
@@ -30,6 +40,7 @@ typedef enum HotDylibState
     HOTDYLIB_FAILED,
 } HotDylibState;
 
+
 /**
  * HotDylib error code
  */
@@ -46,6 +57,7 @@ typedef enum HotDylibError
     HOTDYLIB_ERROR_STACKOVERFLOW,
 } HotDylibError;
 
+
 /** 
  * HotDylib
  */
@@ -56,6 +68,7 @@ typedef struct HotDylib
     void*           userdata;
     char            entryName[256];
 } HotDylib;
+
 
 /**
  * Open an hot dynamic library, path can be not exists from open moment
@@ -72,8 +85,10 @@ HOTDYLIB_API void           HotDylibFree(HotDylib* lib);
  */
 HOTDYLIB_API HotDylibState  HotDylibUpdate(HotDylib* lib);
 
-// Check if guest library ready to rebuild
-//HOTDYLIB_API bool           HotDylibUnlocked(HotDylib* lib);
+/** 
+ * Check if guest library ready to rebuild
+ */ 
+HOTDYLIB_API bool           HotDylibUnlocked(HotDylib* lib);
 
 /**
  * Get an symbol address from library with symbol's name
@@ -89,3 +104,5 @@ HOTDYLIB_API const char*    HotDylibGetError(const HotDylib* lib);
 #ifdef __cplusplus
 };
 #endif
+
+//! EOF HotDylib.h

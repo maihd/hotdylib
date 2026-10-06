@@ -2,6 +2,13 @@ HotDylib
 --------
 Hot reload for dynamic library. Written in C99.
 
+Features
+--------
+- Hot reloading DLL
+- Structured Exception Handler (SEH)
+- Simple file watcher
+> Note: this library use C stdlib, setjmp, and malloc/free internally.
+
 FAQs
 ----
 - Why new library instead of use cr?
@@ -14,7 +21,7 @@ FAQs
   - Just move your code to host project (application that load dynamic library at runtime). Or seperate configuration that have development load dynamic library at runtime, and release that linking the dynamic library.
 
 - I found this project use premake5, how do use custom build system?
-  - Just copy the source file (.h and .c) to your project. 
+  - Just copy the source files (.h and .c) to your project. You can amalgamate source files into single header libray.
 
 License
 -------
